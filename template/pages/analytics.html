@@ -1,0 +1,178 @@
+{{define "content"}}
+<div class="card bg-base-100 shadow-sm mb-4">
+  <div class="card-body py-4">
+    <form method="get" action="/analytics" class="flex flex-wrap gap-3 items-end">
+      <label class="form-control">
+        <div class="label py-1"><span class="label-text text-xs">Dari</span></div>
+        <input type="date" name="from" value="{{.From}}" class="input input-bordered input-sm">
+      </label>
+      <label class="form-control">
+        <div class="label py-1"><span class="label-text text-xs">Sampai</span></div>
+        <input type="date" name="to" value="{{.To}}" class="input input-bordered input-sm">
+      </label>
+      <button type="submit" class="btn btn-primary btn-sm">Terapkan</button>
+    </form>
+  </div>
+</div>
+
+<div class="grid gap-4 lg:grid-cols-2 mb-4">
+  <div class="card bg-base-100 shadow-sm">
+    <div class="card-body">
+      <h2 class="card-title text-base">Distribusi derajat</h2>
+      <div style="height: 280px"><canvas id="chart-grades"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card bg-base-100 shadow-sm">
+    <div class="card-body">
+      <h2 class="card-title text-base">Rata-rata konfidens per derajat</h2>
+      <div style="height: 280px"><canvas id="chart-confidence"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<div class="card bg-base-100 shadow-sm mb-4">
+  <div class="card-body">
+    <h2 class="card-title text-base">Tren harian</h2>
+    <p class="text-xs text-base-content/60">Total pemeriksaan dan jumlah yang perlu dirujuk (derajat &ge; 2).</p>
+    <div style="height: 300px"><canvas id="chart-trend"></canvas></div>
+  </div>
+</div>
+
+<div class="card bg-base-100 shadow-sm">
+  <div class="card-body">
+    <h2 class="card-title text-base">Antrean tinjauan — konfidens rendah</h2>
+    <p class="text-xs text-base-content/60">
+      Prediksi dengan konfidens di bawah {{pct .Threshold}}. Model ini tidak sempurna;
+      kasus yang paling tidak pasti sebaiknya ditinjau manual.
+    </p>
+
+    {{if .LowConfidence}}
+    <div class="overflow-x-auto mt-2">
+      <table class="table table-sm">
+        <thead>
+          <tr><th>Waktu</th><th>Pasien</th><th>Hasil</th><th>Konfidens</th><th></th></tr>
+        </thead>
+        <tbody>
+          {{range .LowConfidence}}
+          <tr class="hover">
+            <td class="whitespace-nowrap">{{if .CreatedAt.Valid}}{{unixDate .CreatedAt.Int32}}{{end}}</td>
+            <td>{{if .PatientRef.Valid}}{{.PatientRef.String}}{{else}}<span class="text-base-content/40">—</span>{{end}}</td>
+            <td>{{if .PredictedGrade.Valid}}
+              <span class="badge {{gradeBadge .PredictedGrade.Int16}} badge-sm">{{gradeLabel .PredictedGrade.Int16}}</span>
+            {{end}}</td>
+            <td class="tabular-nums text-error">{{if .Confidence.Valid}}{{pct .Confidence.Float64}}{{end}}</td>
+            <td class="text-right"><a href="/scans/{{.ID}}" class="btn btn-ghost btn-xs">Tinjau</a></td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}
+    <div class="text-center py-8">
+      <i data-lucide="check-circle-2" class="w-8 h-8 mx-auto text-success/60"></i>
+      <p class="mt-2 text-sm text-base-content/60">Tidak ada prediksi berkonfidens rendah.</p>
+    </div>
+    {{end}}
+  </div>
+</div>
+
+<script src="/static/cdn/chart-4.4.7.umd.js"></script>
+<script>
+(function () {
+  // A single ordinal ramp: severity is ordered, so colour should be too.
+  const SEVERITY = ['#16a34a', '#65a30d', '#ca8a04', '#ea580c', '#dc2626'];
+  const GRID = 'rgba(128,128,128,0.15)';
+
+  Chart.defaults.font.family =
+    '"Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, sans-serif';
+  Chart.defaults.color = getComputedStyle(document.body).color;
+  Chart.defaults.maintainAspectRatio = false;
+
+  const params = new URLSearchParams(window.location.search);
+
+  fetch('/api/analytics?' + params.toString(), { headers: { 'Accept': 'application/json' } })
+    .then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then(render)
+    .catch(function (err) {
+      console.error('analytics:', err);
+      document.querySelectorAll('canvas').forEach(function (c) {
+        c.insertAdjacentHTML('afterend',
+          '<p class="text-sm text-error text-center py-8">Gagal memuat data grafik.</p>');
+        c.remove();
+      });
+    });
+
+  function render(d) {
+    new Chart(document.getElementById('chart-grades'), {
+      type: 'doughnut',
+      data: {
+        labels: d.grade_labels,
+        datasets: [{ data: d.grade_counts, backgroundColor: SEVERITY, borderWidth: 0 }],
+      },
+      options: {
+        cutout: '58%',
+        plugins: { legend: { position: 'right', labels: { boxWidth: 12, padding: 12 } } },
+      },
+    });
+
+    new Chart(document.getElementById('chart-confidence'), {
+      type: 'bar',
+      data: {
+        labels: d.grade_labels,
+        datasets: [{
+          label: 'Rata-rata konfidens',
+          data: d.mean_confidence.map(function (v) { return v * 100; }),
+          backgroundColor: SEVERITY,
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          y: {
+            beginAtZero: true, max: 100, grid: { color: GRID },
+            ticks: { callback: function (v) { return v + '%'; } },
+          },
+          x: { grid: { display: false } },
+        },
+      },
+    });
+
+    new Chart(document.getElementById('chart-trend'), {
+      type: 'line',
+      data: {
+        labels: d.days,
+        datasets: [
+          {
+            label: 'Total pemeriksaan',
+            data: d.daily_total,
+            borderColor: '#2563eb',
+            backgroundColor: 'rgba(37,99,235,0.12)',
+            fill: true, tension: 0.3, pointRadius: 2,
+          },
+          {
+            label: 'Perlu rujukan',
+            data: d.daily_referable,
+            borderColor: '#dc2626',
+            backgroundColor: 'rgba(220,38,38,0.10)',
+            fill: true, tension: 0.3, pointRadius: 2,
+          },
+        ],
+      },
+      options: {
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 12 } } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: GRID }, ticks: { precision: 0 } },
+          x: { grid: { display: false } },
+        },
+      },
+    });
+  }
+})();
+</script>
+{{end}}

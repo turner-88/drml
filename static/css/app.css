@@ -1,0 +1,105 @@
+/* DRML — styles layered on top of the vendored Tailwind + DaisyUI build. */
+
+/* Typography: Sora for headings, Plus Jakarta Sans for body. The families are
+   registered with the Tailwind theme in base.html; the var() fallbacks here keep
+   the page correct if the Play CDN script has not injected its theme yet, and a
+   body/h1..h4 element selector always beats the inherited html preflight value
+   regardless of stylesheet injection order. */
+body {
+  font-family: var(--font-sans, "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, .card-title {
+  font-family: var(--font-heading, "Sora", ui-sans-serif, system-ui, sans-serif);
+  letter-spacing: -0.015em;
+}
+
+/* Proportional figures make stat values jitter as they update; tabular figures
+   keep the columns aligned. */
+.stat-value, .stat-title, td.num, th.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* Fundus images are dark with a bright disc; a neutral surround keeps the
+   clinician's eye adapted rather than fighting a white page. */
+.fundus-frame {
+  background: #0b0f14;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fundus-frame img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Heatmap cross-fade: both layers are stacked so the toggle compares the same
+   framing rather than swapping images and shifting layout. */
+.overlay-stack {
+  position: relative;
+  line-height: 0;
+}
+
+.overlay-stack .overlay-layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 160ms ease-in-out;
+}
+
+.overlay-stack.show-overlay .overlay-layer {
+  opacity: 1;
+}
+
+/* Probability bars on the detail page. */
+.prob-row {
+  display: grid;
+  grid-template-columns: 8.5rem 1fr 4rem;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.prob-track {
+  /* Both track and fill are <span>s. The track is a grid item so it is
+     blockified automatically, but the fill is not — without display:block it
+     stays inline, silently ignores width/height, and every bar renders at the
+     same length regardless of its probability. */
+  display: block;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 999px;
+  height: 0.6rem;
+  overflow: hidden;
+}
+
+.prob-fill {
+  display: block;
+  height: 100%;
+  /* A sub-1% probability would otherwise be invisible; keep a hairline so the
+     row still reads as a bar at zero rather than looking broken. */
+  min-width: 2px;
+  border-radius: 999px;
+  transition: width 240ms ease-out;
+}
+
+/* Print: a scan detail page should print as a clean one-page record. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .print-block {
+    break-inside: avoid;
+  }
+}
+
+/* Alpine sets x-cloak on elements that should stay hidden until it initializes,
+   and removes the attribute once ready. Without this rule the preview block
+   flashes on page load before Alpine evaluates x-show. */
+[x-cloak] {
+  display: none !important;
+}

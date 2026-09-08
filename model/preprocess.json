@@ -1,0 +1,19 @@
+{
+  "height": 224,
+  "width": 224,
+  "image_mean": [
+    0.5,
+    0.5,
+    0.5
+  ],
+  "image_std": [
+    0.5,
+    0.5,
+    0.5
+  ],
+  "rescale_factor": 0.00392156862745098,
+  "do_normalize": true,
+  "do_rescale": true,
+  "resample_code": 2,
+  "resample": "bilinear"
+}

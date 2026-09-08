@@ -1,0 +1,34 @@
+# systemd unit for running DRML directly on a VPS (no Docker).
+#
+#   cp deploy/drml.service /etc/systemd/system/
+#   systemctl daemon-reload && systemctl enable --now drml
+
+[Unit]
+Description=DRML — Diabetic Retinopathy screening
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=drml
+Group=drml
+WorkingDirectory=/opt/drml
+EnvironmentFile=/opt/drml/.env
+ExecStart=/opt/drml/bin/drml
+Restart=on-failure
+RestartSec=5s
+
+# Give an in-flight inference time to finish before the process is killed.
+TimeoutStopSec=45s
+
+# The 2 GB box has no room for a runaway process; fail loudly instead.
+MemoryMax=1200M
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/drml/static/uploads
+
+[Install]
+WantedBy=multi-user.target

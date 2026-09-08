@@ -1,0 +1,62 @@
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    command: --mysql-native-password=ON
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-drml}
+      MYSQL_USER: ${DB_USER:-drml}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD is required}
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./my.cnf:/etc/mysql/conf.d/drml.cnf:ro
+      - ../internal/database/migration/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    # Keep MySQL inside the budget measured for the 2 GB target.
+    deploy:
+      resources:
+        limits:
+          memory: 600M
+
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ENV: production
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_NAME: ${DB_NAME:-drml}
+      DB_USER: ${DB_USER:-drml}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      APP_URL: ${APP_URL:-http://localhost:8080}
+      # Storage: local by default; set STORAGE_DRIVER=r2 plus the R2_* vars to
+      # move blobs to Cloudflare R2 without touching the database.
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_BUCKET: ${R2_BUCKET:-}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    volumes:
+      - uploads:/app/static/uploads
+    deploy:
+      resources:
+        limits:
+          memory: 900M
+
+volumes:
+  db-data:
+  uploads:

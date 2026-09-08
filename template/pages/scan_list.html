@@ -1,0 +1,92 @@
+{{define "content"}}
+<div class="card bg-base-100 shadow-sm mb-4">
+  <div class="card-body py-4">
+    <form method="get" action="/scans" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 items-end">
+      <label class="form-control">
+        <div class="label py-1"><span class="label-text text-xs">Derajat</span></div>
+        <select name="grade" class="select select-bordered select-sm">
+          <option value="">Semua</option>
+          {{range $i := seq 5}}
+          <option value="{{$i}}" {{if eq (printf "%d" $i) $.Filter.grade}}selected{{end}}>
+            {{gradeLabel (int16 $i)}}
+          </option>
+          {{end}}
+        </select>
+      </label>
+
+      <label class="form-control">
+        <div class="label py-1"><span class="label-text text-xs">ID pasien</span></div>
+        <input type="text" name="patient_ref" value="{{.Filter.patient_ref}}"
+               class="input input-bordered input-sm" placeholder="mis. RM-00123">
+      </label>
+
+      <label class="form-control">
+        <div class="label py-1"><span class="label-text text-xs">Dari</span></div>
+        <input type="date" name="from" value="{{.Filter.from}}" class="input input-bordered input-sm">
+      </label>
+
+      <label class="form-control">
+        <div class="label py-1"><span class="label-text text-xs">Sampai</span></div>
+        <input type="date" name="to" value="{{.Filter.to}}" class="input input-bordered input-sm">
+      </label>
+
+      <div class="flex gap-2">
+        <button type="submit" class="btn btn-primary btn-sm flex-1">Terapkan</button>
+        <a href="/scans" class="btn btn-ghost btn-sm">Reset</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card bg-base-100 shadow-sm">
+  <div class="card-body">
+    {{if .Scans}}
+    <div class="overflow-x-auto">
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>Waktu</th>
+            <th>Pasien</th>
+            <th>Hasil</th>
+            <th>Konfidens</th>
+            <th>Catatan</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {{range .Scans}}
+          <tr class="hover">
+            <td class="whitespace-nowrap">{{if .CreatedAt.Valid}}{{unixDate .CreatedAt.Int32}}{{end}}</td>
+            <td>{{if .PatientRef.Valid}}{{.PatientRef.String}}{{else}}<span class="text-base-content/40">—</span>{{end}}</td>
+            <td>
+              {{if .PredictedGrade.Valid}}
+                <span class="badge {{gradeBadge .PredictedGrade.Int16}} badge-sm">{{gradeLabel .PredictedGrade.Int16}}</span>
+              {{else}}
+                <span class="badge badge-ghost badge-sm">Gagal</span>
+              {{end}}
+            </td>
+            <td class="tabular-nums">{{if .Confidence.Valid}}{{pct .Confidence.Float64}}{{end}}</td>
+            <td class="max-w-xs truncate">{{if .Notes.Valid}}{{.Notes.String}}{{end}}</td>
+            <td class="text-right">
+              <a href="/scans/{{.ID}}" class="btn btn-ghost btn-xs">Detail</a>
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+
+    {{if .Pagination.InfoText}}
+    <div class="mt-4">{{template "pagination.html" .Pagination}}</div>
+    {{end}}
+
+    {{else}}
+    <div class="text-center py-12">
+      <i data-lucide="search-x" class="w-10 h-10 mx-auto text-base-content/30"></i>
+      <p class="mt-3 text-base-content/60">Tidak ada pemeriksaan yang cocok.</p>
+      <a href="/scans/new" class="btn btn-primary btn-sm mt-4">Pemeriksaan baru</a>
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}

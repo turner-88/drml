@@ -1,0 +1,49 @@
+{{define "content"}}
+<div class="flex items-center justify-between mb-4">
+  <div class="join">
+    <a href="/admin/users" class="join-item btn btn-sm {{if eq .RoleFilter ""}}btn-active{{end}}">Semua</a>
+    <a href="/admin/users?role=1" class="join-item btn btn-sm {{if eq .RoleFilter "1"}}btn-active{{end}}">Klinisi</a>
+    <a href="/admin/users?role=2" class="join-item btn btn-sm {{if eq .RoleFilter "2"}}btn-active{{end}}">Administrator</a>
+  </div>
+  <a href="/admin/users/new" class="btn btn-primary btn-sm gap-2">
+    <i data-lucide="user-plus" class="w-4 h-4"></i>Tambah Pengguna
+  </a>
+</div>
+
+<div class="card bg-base-100 shadow-sm">
+  <div class="card-body">
+    <div class="overflow-x-auto">
+      <table class="table table-sm">
+        <thead>
+          <tr><th>Nama pengguna</th><th>Nama</th><th>Peran</th><th>Status</th><th>Dibuat</th><th></th></tr>
+        </thead>
+        <tbody>
+          {{range .Users}}
+          <tr class="hover">
+            <td class="font-medium">{{.Username}}</td>
+            <td>{{if .Name.Valid}}{{.Name.String}}{{else}}<span class="text-base-content/40">—</span>{{end}}</td>
+            <td><span class="badge badge-sm {{if eq .Role 2}}badge-primary{{else}}badge-ghost{{end}}">{{roleLabel .Role}}</span></td>
+            <td>
+              {{if .SuspendedAt.Valid}}
+                <span class="badge badge-error badge-sm">Ditangguhkan</span>
+              {{else}}
+                <span class="badge badge-success badge-sm">Aktif</span>
+              {{end}}
+            </td>
+            <td class="whitespace-nowrap">{{if .CreatedAt.Valid}}{{unixDateOnly .CreatedAt.Int32}}{{end}}</td>
+            <td class="text-right">
+              <button class="btn btn-ghost btn-xs"
+                      hx-post="/admin/users/{{.ID}}/suspend"
+                      hx-confirm="{{if .SuspendedAt.Valid}}Aktifkan kembali{{else}}Tangguhkan{{end}} pengguna {{.Username}}?">
+                {{if .SuspendedAt.Valid}}Aktifkan{{else}}Tangguhkan{{end}}
+              </button>
+            </td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{if .Pagination.InfoText}}<div class="mt-4">{{template "pagination.html" .Pagination}}</div>{{end}}
+  </div>
+</div>
+{{end}}

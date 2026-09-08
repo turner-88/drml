@@ -1,0 +1,40 @@
+{{define "pagination-buttons"}}
+<div class="join">
+    {{if .HasPrev}}
+    <a href="{{.PageBase}}page=1" class="join-item btn btn-sm btn-outline border border-base-300 text-base-content/50">&laquo;</a>
+    <a href="{{.PageBase}}page={{.PrevPage}}" class="join-item btn btn-sm btn-outline border border-base-300 text-base-content/50">&lsaquo;</a>
+    {{else}}
+    <button class="join-item btn btn-sm btn-disabled">&laquo;</button>
+    <button class="join-item btn btn-sm btn-disabled">&lsaquo;</button>
+    {{end}}
+    {{range .Pages}}
+        {{if eq . 0}}
+        <button class="join-item btn btn-sm btn-disabled">&hellip;</button>
+        {{else if eq . $.Page}}
+        <button class="join-item btn btn-sm btn-active btn-neutral">{{.}}</button>
+        {{else}}
+        <a href="{{$.PageBase}}page={{.}}" class="join-item btn btn-sm btn-outline border border-base-300 text-base-content/50">{{.}}</a>
+        {{end}}
+    {{end}}
+    {{if .HasNext}}
+    <a href="{{.PageBase}}page={{.NextPage}}" class="join-item btn btn-sm btn-outline border border-base-300 text-base-content/50">&rsaquo;</a>
+    <a href="{{.PageBase}}page={{.TotalPages}}" class="join-item btn btn-sm btn-outline border border-base-300 text-base-content/50">&raquo;</a>
+    {{else}}
+    <button class="join-item btn btn-sm btn-disabled">&rsaquo;</button>
+    <button class="join-item btn btn-sm btn-disabled">&raquo;</button>
+    {{end}}
+</div>
+{{end}}
+
+{{define "pagination"}}
+{{if gt .TotalPages 1}}
+<div class="flex flex-col sm:flex-row justify-between items-center gap-2 p-4 border-t border-base-200">
+    {{if .InfoText}}
+    <span class="text-sm text-base-content/50">{{.InfoText}}</span>
+    {{else}}
+    <span></span>
+    {{end}}
+    {{template "pagination-buttons" .}}
+</div>
+{{end}}
+{{end}}

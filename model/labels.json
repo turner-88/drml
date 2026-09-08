@@ -1,0 +1,45 @@
+{
+  "model_id": "Kontawat/vit-diabetic-retinopathy-classification",
+  "model_file": "vit_dr_int8.onnx",
+  "model_sha256": "48f761ef58bb4bcc801811e3498022a401b45e180b2f4c57281fd3eaef7b9fbe",
+  "ordering_verified": true,
+  "ordering_note": "The checkpoint's id2label is a placeholder ({'0':'0',...}). These names assume the standard APTOS ordering. Run eval.py against labelled data and set ordering_verified=true before relying on these labels clinically.",
+  "labels": [
+    {
+      "grade": 0,
+      "en": "No DR",
+      "id": "Tidak ada DR"
+    },
+    {
+      "grade": 1,
+      "en": "Mild",
+      "id": "Ringan"
+    },
+    {
+      "grade": 2,
+      "en": "Moderate",
+      "id": "Sedang"
+    },
+    {
+      "grade": 3,
+      "en": "Severe",
+      "id": "Berat"
+    },
+    {
+      "grade": 4,
+      "en": "Proliferative DR",
+      "id": "Proliferatif"
+    }
+  ],
+  "ordering_evidence": {
+    "datasets": {
+      "aptos_test:vit_dr.onnx": true,
+      "aptos_test:vit_dr_int8.onnx": true,
+      "eslam:vit_dr.onnx": true,
+      "eslam:vit_dr_int8.onnx": true
+    },
+    "per_class_sampled": 30,
+    "method": "stratified sample; argmax over all 120 index->grade permutations",
+    "caveat": "APTOS public labels are the train split; accuracy is optimistic, ordering is not affected"
+  }
+}

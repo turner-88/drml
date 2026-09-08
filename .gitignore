@@ -1,0 +1,8 @@
+/bin/
+/static/uploads/*
+!/static/uploads/.gitkeep
+.env
+model/.venv/
+model/*.onnx
+model/testdata/golden.json
+.DS_Store

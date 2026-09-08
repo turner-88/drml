@@ -1,0 +1,118 @@
+{{define "content"}}
+<div class="max-w-3xl mx-auto">
+  {{if .Error}}
+  <div role="alert" class="alert alert-error mb-4">
+    <i data-lucide="alert-circle" class="w-5 h-5"></i>
+    <span>{{.Error}}</span>
+  </div>
+  {{end}}
+
+  <form method="post" action="/scans" enctype="multipart/form-data"
+        x-data="uploadForm()" @submit="submitting = true">
+    <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+
+    <div class="card bg-base-100 shadow-sm">
+      <div class="card-body">
+        <h2 class="card-title text-base">Unggah gambar fundus</h2>
+
+        <!-- Drop zone -->
+        <div class="mt-2 border-2 border-dashed rounded-box p-6 text-center transition-colors"
+             :class="dragging ? 'border-primary bg-primary/5' : 'border-base-300'"
+             @dragover.prevent="dragging = true"
+             @dragleave.prevent="dragging = false"
+             @drop.prevent="handleDrop($event)">
+
+          <!-- The file input MUST live outside the conditional blocks, and they
+               must use x-show (which toggles CSS) rather than x-if (which
+               destroys the DOM). With the input inside an x-if, selecting a
+               file flips the condition, Alpine removes the element, and the
+               form submits with no "image" field at all.
+
+               No `required` attribute: the input is permanently hidden, and
+               browsers refuse to submit a form containing an invalid control
+               that cannot be focused. The submit button is disabled until a
+               file is chosen, and the handler validates server-side. -->
+          <input type="file" name="image" id="scan-image"
+                 accept="image/jpeg,image/png,image/webp"
+                 class="hidden" x-ref="file" @change="handlePick($event)">
+
+          <div x-show="!preview">
+            <i data-lucide="image-plus" class="w-10 h-10 mx-auto text-base-content/30"></i>
+            <p class="mt-3 text-sm">Tarik gambar ke sini, atau</p>
+            <label for="scan-image" class="btn btn-outline btn-sm mt-3">Pilih berkas</label>
+            <p class="mt-3 text-xs text-base-content/50">JPG, PNG, atau WebP — maksimal 12 MB</p>
+          </div>
+
+          <div x-show="preview" x-cloak>
+            <div class="fundus-frame mx-auto" style="max-width: 22rem;">
+              <img :src="preview" alt="Pratinjau gambar fundus">
+            </div>
+            <p class="mt-3 text-sm font-medium" x-text="fileName"></p>
+            <p class="text-xs text-base-content/50" x-text="fileSize"></p>
+            <button type="button" class="btn btn-ghost btn-xs mt-2" @click="clearFile()">
+              Ganti gambar
+            </button>
+          </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2 mt-4">
+          <label class="form-control">
+            <div class="label"><span class="label-text">ID pasien <span class="text-base-content/40">(opsional)</span></span></div>
+            <input type="text" name="patient_ref" value="{{.PatientRef}}" maxlength="64"
+                   class="input input-bordered" placeholder="mis. RM-00123">
+          </label>
+          <label class="form-control">
+            <div class="label"><span class="label-text">Catatan <span class="text-base-content/40">(opsional)</span></span></div>
+            <input type="text" name="notes" value="{{.Notes}}"
+                   class="input input-bordered" placeholder="mis. mata kanan">
+          </label>
+        </div>
+
+        <div class="alert alert-info mt-4 text-sm">
+          <i data-lucide="info" class="w-4 h-4"></i>
+          <span>Jangan menutup halaman ini selama pemrosesan berlangsung.</span>
+        </div>
+
+        <div class="card-actions justify-end mt-4">
+          <a href="/scans" class="btn btn-ghost">Batal</a>
+          <button type="submit" class="btn btn-primary gap-2" :disabled="submitting || !preview">
+            <span x-show="!submitting" class="flex items-center gap-2">
+              <i data-lucide="play" class="w-4 h-4"></i>Analisis
+            </span>
+            <span x-show="submitting" class="flex items-center gap-2">
+              <span class="loading loading-spinner loading-sm"></span>Memproses…
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+function uploadForm() {
+  return {
+    preview: null, fileName: '', fileSize: '', dragging: false, submitting: false,
+    handlePick(e) { if (e.target.files.length) this.show(e.target.files[0]); },
+    handleDrop(e) {
+      this.dragging = false;
+      if (!e.dataTransfer.files.length) return;
+      // Assign to the real input so the file is included in the form submission.
+      this.$refs.file.files = e.dataTransfer.files;
+      this.show(e.dataTransfer.files[0]);
+    },
+    show(file) {
+      this.fileName = file.name;
+      this.fileSize = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+      const reader = new FileReader();
+      reader.onload = (ev) => { this.preview = ev.target.result; };
+      reader.readAsDataURL(file);
+    },
+    clearFile() {
+      this.preview = null; this.fileName = ''; this.fileSize = '';
+      this.$refs.file.value = '';
+    },
+  };
+}
+</script>
+{{end}}
