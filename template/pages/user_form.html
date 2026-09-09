@@ -1,6 +1,6 @@
 {{define "actions"}}
 <a href="/admin/users" class="btn btn-sm btn-outline">
-  <i data-lucide="arrow-left"></i> Daftar pengguna
+  <i data-lucide="arrow-left"></i> Kembali ke Daftar Pengguna
 </a>
 {{end}}
 
@@ -16,43 +16,43 @@
   <form method="post" action="/admin/users">
     <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
     <div class="card">
-      <div class="card-header"><h2 class="card-title">Akun baru</h2></div>
+      <div class="card-header"><h2 class="card-title">Tambah Pengguna Baru</h2></div>
 
       <div class="card-body gap-4">
         <div class="field">
-          <span class="label-text">Nama pengguna</span>
+          <span class="label-text">Username</span>
           <input type="text" name="username" value="{{.Username}}" required minlength="3" maxlength="50"
-                 class="input" autocomplete="off">
+                 class="input" autocomplete="off" placeholder="Masukkan username">
         </div>
 
         <div class="field">
-          <span class="label-text">Nama lengkap</span>
-          <input type="text" name="name" value="{{.Name}}" maxlength="100" class="input">
+          <span class="label-text">Nama Lengkap</span>
+          <input type="text" name="name" value="{{.Name}}" maxlength="100" class="input" placeholder="Masukkan nama lengkap">
         </div>
 
         <div class="field">
           <span class="label-text">Email</span>
-          <input type="email" name="email" value="{{.Email}}" maxlength="100" class="input">
+          <input type="email" name="email" value="{{.Email}}" maxlength="100" class="input" placeholder="contoh@domain.com">
         </div>
 
         <div class="field">
-          <span class="label-text">Peran</span>
+          <span class="label-text">Peran (Role)</span>
           <select name="role" class="select">
-            <option value="1" {{if eq .Role 1}}selected{{end}}>Klinisi — hanya melihat pemeriksaannya sendiri</option>
-            <option value="2" {{if eq .Role 2}}selected{{end}}>Administrator — melihat semua &amp; mengelola pengguna</option>
+            <option value="1" {{if eq .Role 1}}selected{{end}}>Klinisi — hanya melihat data pemeriksaannya sendiri</option>
+            <option value="2" {{if eq .Role 2}}selected{{end}}>Administrator — akses penuh untuk melihat semua data &amp; mengelola pengguna</option>
           </select>
         </div>
 
         <div class="field">
-          <span class="label-text">Kata sandi awal <span class="label-alt">wajib diganti saat masuk pertama</span></span>
+          <span class="label-text">Password Awal <span class="label-alt">wajib diganti saat login pertama kali</span></span>
           <input type="password" name="password" required minlength="8"
-                 class="input" autocomplete="new-password">
+                 class="input" autocomplete="new-password" placeholder="Minimal 8 karakter">
         </div>
       </div>
 
       <div class="card-foot">
         <a href="/admin/users" class="btn btn-ghost">Batal</a>
-        <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> Simpan</button>
+        <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> Simpan Pengguna</button>
       </div>
     </div>
   </form>

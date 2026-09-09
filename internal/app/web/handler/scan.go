@@ -34,13 +34,13 @@ func (h *Handler) NewScanPage(w http.ResponseWriter, r *http.Request) {
 // CreateScan handles the upload and runs inference synchronously.
 func (h *Handler) CreateScan(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseMultipartForm(scansvc.MaxImageBytes); err != nil {
-		h.renderScanError(w, r, "Gagal membaca formulir unggahan.")
+		h.renderScanError(w, r, "Gagal memproses data unggahan.")
 		return
 	}
 
 	file, header, err := r.FormFile("image")
 	if err != nil {
-		h.renderScanError(w, r, "Pilih berkas gambar fundus terlebih dahulu.")
+		h.renderScanError(w, r, "Pilih file foto fundus terlebih dahulu.")
 		return
 	}
 	defer file.Close()
@@ -51,11 +51,11 @@ func (h *Handler) CreateScan(w http.ResponseWriter, r *http.Request) {
 	mime := strings.Split(http.DetectContentType(buf[:n]), ";")[0]
 	ext, ok := allowedUploadExt[mime]
 	if !ok {
-		h.renderScanError(w, r, "Tipe berkas tidak didukung: "+mime+". Gunakan JPG, PNG, atau WebP.")
+		h.renderScanError(w, r, "Format file tidak didukung: "+mime+". Gunakan JPG, PNG, atau WebP.")
 		return
 	}
 	if _, err := file.Seek(0, 0); err != nil {
-		h.renderScanError(w, r, "Gagal memproses berkas.")
+		h.renderScanError(w, r, "Gagal memproses file gambar.")
 		return
 	}
 	_ = header
@@ -72,15 +72,15 @@ func (h *Handler) CreateScan(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, infer.ErrBusy):
 			// Shed load rather than queueing: on 2 vCPU a backlog becomes swap.
 			w.WriteHeader(http.StatusServiceUnavailable)
-			h.renderScanError(w, r, "Server sedang sibuk memproses pemeriksaan lain. Coba lagi sebentar.")
+			h.renderScanError(w, r, "Server sedang sibuk memproses antrean pemeriksaan lain. Silakan coba beberapa saat lagi.")
 		case errors.Is(err, scansvc.ErrUnsupportedImage):
-			h.renderScanError(w, r, "Berkas tidak dapat dibaca sebagai gambar.")
+			h.renderScanError(w, r, "File tidak valid atau rusak sehingga tidak dapat dibaca sebagai gambar.")
 		case errors.Is(err, infer.ErrNotFundus):
 			// The failing feature stays in the log: it would mean nothing to a
 			// clinician, and spelling it out would explain how to get past it.
 			log.Printf("scan create: gate rejected upload: %v", err)
-			h.renderScanError(w, r, "Gambar tidak dikenali sebagai foto fundus retina. "+
-				"Pastikan yang diunggah adalah hasil kamera fundus, bukan foto biasa "+
+			h.renderScanError(w, r, "Citra tidak dikenali sebagai foto fundus retina. "+
+				"Pastikan file yang diunggah adalah hasil foto kamera fundus asli, bukan foto biasa "+
 				"atau tangkapan layar.")
 		default:
 			log.Printf("scan create: %v", err)
@@ -165,7 +165,7 @@ func (h *Handler) DeleteScan(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("scan delete %d: %v", id, err)
-		http.Error(w, "Gagal menghapus pemeriksaan", http.StatusInternalServerError)
+		http.Error(w, "Gagal menghapus data pemeriksaan", http.StatusInternalServerError)
 		return
 	}
 
@@ -203,7 +203,7 @@ func (h *Handler) ScanList(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Printf("scan list count: %v", err)
-		http.Error(w, "Gagal memuat riwayat", http.StatusInternalServerError)
+		http.Error(w, "Gagal memuat riwayat pemeriksaan", http.StatusInternalServerError)
 		return
 	}
 
@@ -219,7 +219,7 @@ func (h *Handler) ScanList(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Printf("scan list: %v", err)
-		http.Error(w, "Gagal memuat riwayat", http.StatusInternalServerError)
+		http.Error(w, "Gagal memuat riwayat pemeriksaan", http.StatusInternalServerError)
 		return
 	}
 

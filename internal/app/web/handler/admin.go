@@ -37,7 +37,7 @@ func (h *Handler) UserList(w http.ResponseWriter, r *http.Request) {
 	total, err := h.store.CountUsers(r.Context(), db.CountUsersParams{Role: roleFilter})
 	if err != nil {
 		log.Printf("user list count: %v", err)
-		http.Error(w, "Gagal memuat pengguna", http.StatusInternalServerError)
+		http.Error(w, "Gagal memuat data pengguna", http.StatusInternalServerError)
 		return
 	}
 	rows, err := h.store.ListUsers(r.Context(), db.ListUsersParams{
@@ -47,7 +47,7 @@ func (h *Handler) UserList(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Printf("user list: %v", err)
-		http.Error(w, "Gagal memuat pengguna", http.StatusInternalServerError)
+		http.Error(w, "Gagal memuat data pengguna", http.StatusInternalServerError)
 		return
 	}
 
@@ -59,9 +59,9 @@ func (h *Handler) UserList(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.URL.Query().Get("error") {
 	case "self":
-		data["Error"] = "Tidak dapat menangguhkan akun sendiri."
+		data["Error"] = "Anda tidak dapat menangguhkan akun Anda sendiri."
 	case "last_admin":
-		data["Error"] = "Tidak dapat menangguhkan administrator terakhir."
+		data["Error"] = "Tidak dapat menangguhkan akun administrator terakhir dalam sistem."
 	}
 
 	h.render(w, r, "users", data)
@@ -91,7 +91,7 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(username) < 3 {
-		form["Error"] = "Nama pengguna minimal 3 karakter."
+		form["Error"] = "Username minimal 3 karakter."
 		h.render(w, r, "user_form", form)
 		return
 	}
@@ -101,18 +101,18 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if role != int(model.UserRoleClinician) && role != int(model.UserRoleAdmin) {
-		form["Error"] = "Peran tidak valid."
+		form["Error"] = "Pilihan peran (role) tidak valid."
 		h.render(w, r, "user_form", form)
 		return
 	}
 
 	if _, err := h.store.GetUserByUsername(r.Context(), username); err == nil {
-		form["Error"] = "Nama pengguna sudah digunakan."
+		form["Error"] = "Username sudah digunakan oleh akun lain."
 		h.render(w, r, "user_form", form)
 		return
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		log.Printf("create user lookup: %v", err)
-		form["Error"] = "Gagal memeriksa nama pengguna."
+		form["Error"] = "Gagal memeriksa ketersediaan username."
 		h.render(w, r, "user_form", form)
 		return
 	}
@@ -120,7 +120,7 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Printf("create user hash: %v", err)
-		http.Error(w, "Gagal membuat pengguna", http.StatusInternalServerError)
+		http.Error(w, "Gagal membuat akun pengguna", http.StatusInternalServerError)
 		return
 	}
 
@@ -140,7 +140,7 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		UpdatedBy:          store.NullInt32(me.ID),
 	}); err != nil {
 		log.Printf("create user: %v", err)
-		form["Error"] = "Gagal membuat pengguna."
+		form["Error"] = "Gagal membuat akun pengguna."
 		h.render(w, r, "user_form", form)
 		return
 	}
@@ -173,7 +173,7 @@ func (h *Handler) SuspendUser(w http.ResponseWriter, r *http.Request) {
 		admins, err := h.store.CountUsersByRole(r.Context(), int32(model.UserRoleAdmin))
 		if err != nil {
 			log.Printf("suspend: count admins: %v", err)
-			http.Error(w, "Gagal memeriksa administrator", http.StatusInternalServerError)
+			http.Error(w, "Gagal memverifikasi akun administrator", http.StatusInternalServerError)
 			return
 		}
 		if admins <= 1 {
@@ -195,7 +195,7 @@ func (h *Handler) SuspendUser(w http.ResponseWriter, r *http.Request) {
 		ID:          int32(id),
 	}); err != nil {
 		log.Printf("suspend user %d: %v", id, err)
-		http.Error(w, "Gagal memperbarui pengguna", http.StatusInternalServerError)
+		http.Error(w, "Gagal memperbarui data pengguna", http.StatusInternalServerError)
 		return
 	}
 

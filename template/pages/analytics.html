@@ -11,8 +11,8 @@
 <div class="grid gap-4 lg:grid-cols-2">
   <div class="card">
     <div class="card-header">
-      <h2 class="card-title">Distribusi derajat</h2>
-      <span class="card-note num">{{.TotalGraded}} pemeriksaan</span>
+      <h2 class="card-title">Distribusi Derajat Keparahan</h2>
+      <span class="card-note num">{{.TotalGraded}} pemeriksaan selesai</span>
     </div>
     <div class="card-body">
       {{if .TotalGraded}}
@@ -32,8 +32,8 @@
       {{else}}
       <div class="empty">
         <div class="empty-ic"><i data-lucide="pie-chart"></i></div>
-        <div class="empty-title">Belum ada data</div>
-        <p class="empty-hint">Tidak ada pemeriksaan berhasil dalam rentang tanggal ini.</p>
+        <div class="empty-title">Belum ada data pemeriksaan</div>
+        <p class="empty-hint">Tidak ada riwayat pemeriksaan yang berhasil dalam rentang tanggal ini.</p>
       </div>
       {{end}}
     </div>
@@ -41,7 +41,7 @@
 
   <div class="card">
     <div class="card-header">
-      <h2 class="card-title">Rata-rata konfidens per derajat</h2>
+      <h2 class="card-title">Rata-rata Confidence per Derajat</h2>
     </div>
     <div class="card-body">
       {{if .TotalGraded}}
@@ -59,14 +59,14 @@
         {{end}}
       </div>
       <p class="hint mt-2">
-        Konfidens tinggi bukan jaminan benar — ia hanya menunjukkan seberapa
-        yakin model pada tebakannya sendiri.
+        Skor confidence yang tinggi bukan jaminan diagnosis 100% tepat — skor ini merefleksikan
+        tingkat kepastian model terhadap hasil prediksinya.
       </p>
       {{else}}
       <div class="empty">
         <div class="empty-ic"><i data-lucide="gauge"></i></div>
-        <div class="empty-title">Belum ada data</div>
-        <p class="empty-hint">Konfidens dihitung dari pemeriksaan yang berhasil dianalisis.</p>
+        <div class="empty-title">Belum ada data pemeriksaan</div>
+        <p class="empty-hint">Skor confidence dihitung dari hasil pemeriksaan yang berhasil dianalisis.</p>
       </div>
       {{end}}
     </div>
@@ -75,9 +75,9 @@
 
 <div class="card mt-4">
   <div class="card-header">
-    <h2 class="card-title">Tren harian</h2>
+    <h2 class="card-title">Tren Pemeriksaan Harian</h2>
     <span class="card-note">Puncak <span class="num">{{.PeakDaily}}</span>
-      per {{if gt .BinDays 1}}{{.BinDays}} hari{{else}}hari{{end}}</span>
+      pemeriksaan / {{if gt .BinDays 1}}{{.BinDays}} hari{{else}}hari{{end}}</span>
   </div>
   <div class="card-body">
     {{/* Guarded on PeakDaily, not on .Days: every day in the window now gets a
@@ -109,15 +109,15 @@
       </div>
     </div>
     <div class="chart-legend mt-3">
-      <span class="item"><span class="swatch trend-sw-rest"></span>Derajat 0&ndash;1</span>
-      <span class="item"><span class="swatch sev-4"></span>Perlu rujukan (derajat &ge; 2)</span>
+      <span class="item"><span class="swatch trend-sw-rest"></span>Derajat 0&ndash;1 (Non-referable)</span>
+      <span class="item"><span class="swatch sev-4"></span>Perlu rujukan (Derajat &ge; 2)</span>
       {{if gt .BinDays 1}}<span class="item">Tiap kolom = {{.BinDays}} hari</span>{{end}}
     </div>
     {{else}}
     <div class="empty">
       <div class="empty-ic"><i data-lucide="calendar-off"></i></div>
-      <div class="empty-title">Belum ada data</div>
-      <p class="empty-hint">Tidak ada pemeriksaan dalam rentang tanggal ini.</p>
+      <div class="empty-title">Belum ada data pemeriksaan</div>
+      <p class="empty-hint">Tidak ada riwayat pemeriksaan dalam rentang tanggal ini.</p>
     </div>
     {{end}}
   </div>
@@ -125,14 +125,14 @@
 
 <div class="card mt-4">
   <div class="card-header">
-    <h2 class="card-title">Antrean tinjauan — konfidens rendah</h2>
-    <span class="card-note">di bawah {{pct .Threshold}}</span>
+    <h2 class="card-title">Antrean Peninjauan — Confidence Rendah</h2>
+    <span class="card-note">skor di bawah {{pct .Threshold}}</span>
   </div>
 
   <div class="table-wrap">
     <table class="table">
       <thead>
-        <tr><th>Waktu</th><th>Pasien</th><th>Hasil</th><th class="num">Konfidens</th><th></th></tr>
+        <tr><th>Waktu</th><th>ID Pasien</th><th>Hasil Prediksi</th><th class="num">Confidence</th><th></th></tr>
       </thead>
       <tbody>
         {{range .LowConfidence}}
@@ -151,8 +151,8 @@
             <div class="empty-ic" style="background:color-mix(in srgb,var(--color-success) 12%,white);color:var(--color-success)">
               <i data-lucide="check-circle-2"></i>
             </div>
-            <div class="empty-title">Tidak ada prediksi berkonfidens rendah</div>
-            <p class="empty-hint">Model ini tidak sempurna; kasus paling tidak pasti akan muncul di sini.</p>
+            <div class="empty-title">Tidak ada prediksi dengan confidence rendah</div>
+            <p class="empty-hint">Pemeriksaan dengan tingkat kepastian prediksi di bawah ambang batas akan otomatis masuk ke antrean ini untuk ditinjau.</p>
           </div>
         </td></tr>
         {{end}}

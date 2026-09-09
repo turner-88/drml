@@ -18,7 +18,7 @@ const authCookie = "drml_token"
 func (h *Handler) LoginPage(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{"Title": "Masuk"}
 	if r.URL.Query().Get("blocked") == "1" {
-		data["Error"] = "Terlalu banyak percobaan masuk. Coba lagi dalam 15 menit."
+		data["Error"] = "Terlalu banyak percobaan login yang gagal. Silakan coba lagi dalam 15 menit."
 	}
 	h.renderGuest(w, r, "login", data)
 }
@@ -33,7 +33,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		// from "wrong password" would let an attacker enumerate accounts.
 		h.renderGuest(w, r, "login", map[string]any{
 			"Title":    "Masuk",
-			"Error":    "Nama pengguna atau kata sandi salah.",
+			"Error":    "Username atau password salah.",
 			"Username": username,
 		})
 	}
@@ -56,7 +56,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	if user.SuspendedAt.Valid {
 		h.renderGuest(w, r, "login", map[string]any{
 			"Title": "Masuk",
-			"Error": "Akun ini ditangguhkan. Hubungi administrator.",
+			"Error": "Akun ini sedang ditangguhkan. Silakan hubungi administrator.",
 		})
 		return
 	}
@@ -78,7 +78,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		log.Printf("login: token for %q: %v", username, err)
-		http.Error(w, "Gagal membuat sesi", http.StatusInternalServerError)
+		http.Error(w, "Gagal membuat sesi login", http.StatusInternalServerError)
 		return
 	}
 

@@ -9,9 +9,9 @@
   <div class="card-body">
     <form method="get" action="/scans" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 items-end">
       <div class="field">
-        <span class="label-text">Derajat</span>
+        <span class="label-text">Derajat Keparahan</span>
         <select name="grade" class="select select-sm">
-          <option value="">Semua</option>
+          <option value="">Semua Derajat</option>
           {{range $i := seq 5}}
           <option value="{{$i}}" {{if eq (printf "%d" $i) $.Filter.grade}}selected{{end}}>
             {{gradeLabel (int16 $i)}}
@@ -21,18 +21,18 @@
       </div>
 
       <div class="field">
-        <span class="label-text">ID pasien</span>
+        <span class="label-text">ID Pasien</span>
         <input type="text" name="patient_ref" value="{{.Filter.patient_ref}}"
                class="input input-sm" placeholder="mis. RM-00123">
       </div>
 
       <div class="field">
-        <span class="label-text">Dari</span>
+        <span class="label-text">Dari Tanggal</span>
         <input type="date" name="from" value="{{.Filter.from}}" class="input input-sm">
       </div>
 
       <div class="field">
-        <span class="label-text">Sampai</span>
+        <span class="label-text">Sampai Tanggal</span>
         <input type="date" name="to" value="{{.Filter.to}}" class="input input-sm">
       </div>
 
@@ -50,9 +50,9 @@
       <thead>
         <tr>
           <th>Waktu</th>
-          <th>Pasien</th>
-          <th>Hasil</th>
-          <th class="num">Konfidens</th>
+          <th>ID Pasien</th>
+          <th>Hasil Prediksi</th>
+          <th class="num">Confidence</th>
           <th>Catatan</th>
           <th></th>
         </tr>
@@ -79,9 +79,9 @@
         <tr><td colspan="6">
           <div class="empty">
             <div class="empty-ic"><i data-lucide="search-x"></i></div>
-            <div class="empty-title">Tidak ada pemeriksaan yang cocok</div>
-            <p class="empty-hint">Ubah filter di atas, atau mulai pemeriksaan baru.</p>
-            <a href="/scans/new" class="btn btn-sm btn-primary mt-2">Pemeriksaan baru</a>
+            <div class="empty-title">Tidak ada riwayat pemeriksaan yang cocok</div>
+            <p class="empty-hint">Sesuaikan filter pencarian di atas atau mulai pemeriksaan baru.</p>
+            <a href="/scans/new" class="btn btn-sm btn-primary mt-2">Mulai Pemeriksaan Baru</a>
           </div>
         </td></tr>
         {{end}}

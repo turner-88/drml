@@ -23,9 +23,9 @@
       <thead>
         <tr>
           <th>Pengguna</th>
-          <th>Peran</th>
+          <th>Peran (Role)</th>
           <th>Status</th>
-          <th>Dibuat</th>
+          <th>Tanggal Registrasi</th>
           <th></th>
         </tr>
       </thead>
@@ -54,7 +54,7 @@
           <td class="whitespace-nowrap">{{if .CreatedAt.Valid}}{{unixDateOnly .CreatedAt.Int32}}{{end}}</td>
           <td class="text-right">
             <form method="post" action="/admin/users/{{.ID}}/suspend" class="inline"
-                  onsubmit="return confirm('{{if .SuspendedAt.Valid}}Aktifkan kembali{{else}}Tangguhkan{{end}} pengguna {{.Username}}?')">
+                  onsubmit="return confirm('{{if .SuspendedAt.Valid}}Aktifkan kembali{{else}}Tangguhkan{{end}} akun {{.Username}}?')">
               <input type="hidden" name="_csrf" value="{{$.CSRFToken}}">
               <button type="submit" class="btn btn-xs btn-ghost {{if not .SuspendedAt.Valid}}text-error{{end}}">
                 {{if .SuspendedAt.Valid}}Aktifkan{{else}}Tangguhkan{{end}}
@@ -66,8 +66,8 @@
         <tr><td colspan="5">
           <div class="empty">
             <div class="empty-ic"><i data-lucide="users"></i></div>
-            <div class="empty-title">Tidak ada pengguna</div>
-            <p class="empty-hint">Tidak ada akun yang cocok dengan filter peran ini.</p>
+            <div class="empty-title">Tidak ada data pengguna</div>
+            <p class="empty-hint">Tidak ditemukan akun yang sesuai dengan filter peran yang dipilih.</p>
           </div>
         </td></tr>
         {{end}}

@@ -3,12 +3,12 @@
   <div class="brand-mark"><i data-lucide="eye"></i></div>
   <div>
     <div class="font-heading font-bold leading-tight" style="color:var(--color-ink)">DRML</div>
-    <div class="text-xs text-base-content/55">Penapisan Retinopati Diabetik</div>
+    <div class="text-xs text-base-content/55">Screening Retinopati Diabetik</div>
   </div>
 </div>
 
 <h1 class="text-2xl font-bold">Masuk</h1>
-<p class="page-subtitle mb-6">Gunakan akun yang diberikan administrator.</p>
+<p class="page-subtitle mb-6">Silakan masuk menggunakan akun yang telah didaftarkan oleh administrator.</p>
 
 {{if .Error}}
 <div role="alert" class="alert alert-error mb-4">
@@ -21,20 +21,20 @@
   <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
 
   <div class="field">
-    <span class="label-text">Nama pengguna</span>
+    <span class="label-text">Username</span>
     <label class="input">
       <i data-lucide="user" class="w-4 h-4 text-base-content/40"></i>
       <input type="text" name="username" value="{{.Username}}" required autofocus
-             autocomplete="username" placeholder="nama pengguna">
+             autocomplete="username" placeholder="Masukkan username">
     </label>
   </div>
 
   <div class="field">
-    <span class="label-text">Kata sandi</span>
+    <span class="label-text">Password</span>
     <label class="input">
       <i data-lucide="lock" class="w-4 h-4 text-base-content/40"></i>
       <input type="password" name="password" required autocomplete="current-password"
-             placeholder="kata sandi">
+             placeholder="Masukkan password">
     </label>
   </div>
 
@@ -43,5 +43,5 @@
   </button>
 </form>
 
-<p class="hint mt-6 text-center">Alat bantu penapisan — bukan alat diagnosis.</p>
+<p class="hint mt-6 text-center">Alat bantu screening — bukan pengganti diagnosis medis.</p>
 {{end}}

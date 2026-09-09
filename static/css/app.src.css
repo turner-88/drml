@@ -93,6 +93,10 @@
     @apply sticky top-0 z-10 flex items-center gap-2 h-14 px-4
            bg-base-100/90 backdrop-blur border-b border-base-300;
   }
+  /* The drawer toggle is the only tap target up here, so it gets a full 44px
+     touch target and a 24px glyph rather than .btn's em-relative size. */
+  .topbar .btn { @apply w-11 h-11; }
+  .topbar .btn svg { @apply w-6 h-6; }
 
   .drawer-side { @apply fixed inset-0 z-40 invisible; }
   .drawer-side > aside { @apply h-full -translate-x-full transition-transform duration-200; }

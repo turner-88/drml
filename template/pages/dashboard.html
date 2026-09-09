@@ -12,8 +12,8 @@
     </div>
     <div class="min-w-0">
       <div class="stat-num">{{.Summary.TotalScans}}</div>
-      <div class="stat-lbl">Total pemeriksaan</div>
-      <div class="stat-sub">Sejak {{.From}}</div>
+      <div class="stat-lbl">Total Pemeriksaan</div>
+      <div class="stat-sub">Periode sejak {{.From}}</div>
     </div>
   </div>
 
@@ -23,7 +23,7 @@
     </div>
     <div class="min-w-0">
       <div class="stat-num">{{pct .ReferableRate}}</div>
-      <div class="stat-lbl">Perlu rujukan</div>
+      <div class="stat-lbl">Perlu Rujukan</div>
       <div class="stat-sub">{{.ReferableCount}} kasus derajat &ge; 2</div>
     </div>
   </div>
@@ -34,8 +34,8 @@
     </div>
     <div class="min-w-0">
       <div class="stat-num">{{pct .MeanConfidence}}</div>
-      <div class="stat-lbl">Rata-rata konfidens</div>
-      <div class="stat-sub">{{.MeanInferenceMs}} ms per gambar</div>
+      <div class="stat-lbl">Rata-rata Confidence</div>
+      <div class="stat-sub">{{.MeanInferenceMs}} ms per foto</div>
     </div>
   </div>
 
@@ -45,15 +45,15 @@
     </div>
     <div class="min-w-0">
       <div class="stat-num">{{.LowConfidenceCount}}</div>
-      <div class="stat-lbl">Konfidens rendah</div>
-      <div class="stat-sub">Disarankan ditinjau manual</div>
+      <div class="stat-lbl">Confidence Rendah</div>
+      <div class="stat-sub">Perlu peninjauan manual</div>
     </div>
   </div>
 </div>
 
 <div class="card mt-4">
   <div class="card-header">
-    <h2 class="card-title">Pemeriksaan terbaru</h2>
+    <h2 class="card-title">Pemeriksaan Terbaru</h2>
     <a href="/scans" class="btn btn-ghost btn-sm">Lihat semua <i data-lucide="chevron-right"></i></a>
   </div>
 
@@ -62,9 +62,9 @@
       <thead>
         <tr>
           <th>Waktu</th>
-          <th>Pasien</th>
-          <th>Hasil</th>
-          <th class="num">Konfidens</th>
+          <th>ID Pasien</th>
+          <th>Hasil Prediksi</th>
+          <th class="num">Confidence</th>
           <th></th>
         </tr>
       </thead>
@@ -89,9 +89,9 @@
         <tr><td colspan="5">
           <div class="empty">
             <div class="empty-ic"><i data-lucide="inbox"></i></div>
-            <div class="empty-title">Belum ada pemeriksaan</div>
-            <p class="empty-hint">Unggah citra kamera fundus untuk memulai penapisan pertama.</p>
-            <a href="/scans/new" class="btn btn-sm btn-primary mt-2">Mulai pemeriksaan pertama</a>
+            <div class="empty-title">Belum ada data pemeriksaan</div>
+            <p class="empty-hint">Unggah foto kamera fundus untuk memulai screening pertama.</p>
+            <a href="/scans/new" class="btn btn-sm btn-primary mt-2">Mulai Pemeriksaan Pertama</a>
           </div>
         </td></tr>
         {{end}}

@@ -32,7 +32,7 @@ func (h *Handler) settingsData(r *http.Request, errMsg string) map[string]any {
 // UpdateSettings applies the administrator's gate preference.
 func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		h.render(w, r, "settings", h.settingsData(r, "Gagal membaca formulir."))
+		h.render(w, r, "settings", h.settingsData(r, "Gagal memproses formulir pengaturan."))
 		return
 	}
 
@@ -41,8 +41,8 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 
 	if want && !h.engine.GateAvailable() {
 		h.render(w, r, "settings", h.settingsData(r,
-			"Filter tidak dapat diaktifkan: model/gate.json tidak ditemukan. "+
-				"Jalankan model/gate.py untuk mengkalibrasi ambang batasnya."))
+			"Filter tidak dapat diaktifkan: file model/gate.json tidak ditemukan. "+
+				"Silakan jalankan script model/gate.py untuk melakukan kalibrasi threshold terlebih dahulu."))
 		return
 	}
 
@@ -53,7 +53,7 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	// and the disagreement would only surface at the next restart.
 	if err := h.store.SetBoolSetting(r.Context(), store.SettingGateEnabled, want, me.ID); err != nil {
 		log.Printf("settings: save gate.enabled: %v", err)
-		h.render(w, r, "settings", h.settingsData(r, "Gagal menyimpan pengaturan."))
+		h.render(w, r, "settings", h.settingsData(r, "Gagal menyimpan perubahan pengaturan."))
 		return
 	}
 
@@ -62,7 +62,7 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 		// and here; the stored value is already correct for the next restart.
 		log.Println("settings: gate enable refused, no calibration loaded")
 		h.render(w, r, "settings", h.settingsData(r,
-			"Pengaturan tersimpan, tetapi filter tidak dapat diaktifkan tanpa model/gate.json."))
+			"Pengaturan berhasil disimpan, namun filter tidak dapat diaktifkan karena file model/gate.json belum tersedia."))
 		return
 	}
 

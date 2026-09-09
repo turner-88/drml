@@ -22,7 +22,7 @@
     <!-- Mobile top bar. On desktop the sidebar is always visible and the page
          title lives in .page-header, so there is nothing left for a navbar. -->
     <header class="topbar lg:hidden no-print">
-      <label for="nav-drawer" class="btn btn-square btn-ghost btn-sm" aria-label="Buka menu">
+      <label for="nav-drawer" class="btn btn-square btn-ghost" aria-label="Buka menu">
         <i data-lucide="menu"></i>
       </label>
       <div class="brand-mark w-8 h-8"><i data-lucide="eye"></i></div>
@@ -42,9 +42,9 @@
       <div role="alert" class="alert alert-warning mb-4 no-print">
         <i data-lucide="alert-triangle"></i>
         <div>
-          <div class="font-semibold">Urutan kelas model belum diverifikasi</div>
-          <div>Label tingkat keparahan yang ditampilkan masih berupa asumsi.
-            Jalankan <code>model/eval.py</code> sebelum digunakan secara klinis.</div>
+          <div class="font-semibold">Urutan kelas (grade) model belum diverifikasi</div>
+          <div>Label derajat keparahan yang ditampilkan saat ini masih bersifat estimasi awal.
+            Jalankan <code>model/eval.py</code> untuk validasi sebelum digunakan secara klinis.</div>
         </div>
       </div>
       {{end}}
@@ -53,11 +53,11 @@
       <div role="alert" class="alert alert-warning mb-4 no-print">
         <i data-lucide="shield-off"></i>
         <div>
-          <div class="font-semibold">Filter foto non-fundus nonaktif</div>
-          <div>Setiap gambar yang dapat dibaca akan dianalisis dan diberi nilai,
+          <div class="font-semibold">Filter foto non-fundus dinonaktifkan</div>
+          <div>Semua gambar yang terbaca akan tetap dianalisis dan diprediksi,
             termasuk foto biasa dan tangkapan layar.
-            {{if not .GateAvailable}}Ambang batas belum dikalibrasi — jalankan
-            <code>model/gate.py</code>.{{end}}</div>
+            {{if not .GateAvailable}}Threshold belum dikalibrasi — silakan jalankan
+            <code>model/gate.py</code> terlebih dahulu.{{end}}</div>
         </div>
       </div>
       {{end}}
@@ -69,8 +69,8 @@
          .drawer-content, so short pages push this down to the viewport bottom
          while long pages simply let it scroll away. -->
     <footer class="page-footer print-block">
-      <p class="font-medium">Alat bantu penapisan — bukan alat diagnosis.</p>
-      <p>Setiap hasil harus dikonfirmasi oleh dokter spesialis mata. Model:
+      <p class="font-medium">Alat bantu screening — bukan pengganti diagnosis medis.</p>
+      <p>Seluruh hasil analisis wajib dikonfirmasi kembali oleh dokter spesialis mata (Sp.M). Versi model:
         <code>{{.ModelID}}</code>.</p>
       <p class="mt-1">&copy; {{.Year}} DRML</p>
     </footer>
@@ -83,7 +83,7 @@
         <div class="brand-mark"><i data-lucide="eye"></i></div>
         <div>
           <div class="font-heading font-bold leading-tight" style="color:var(--color-ink)">DRML</div>
-          <div class="text-[11px] text-base-content/55 leading-tight">Penapisan Retinopati</div>
+          <div class="text-[11px] text-base-content/55 leading-tight">Screening Retinopati</div>
         </div>
       </div>
 
@@ -93,7 +93,7 @@
           <div class="nav-label">Ringkasan</div>
           <ul class="menu">
             <li><a href="/" class="{{if eq $p "/"}}menu-active{{end}}">
-              <i data-lucide="layout-dashboard"></i> Dasbor</a></li>
+              <i data-lucide="layout-dashboard"></i> Dashboard</a></li>
           </ul>
         </div>
 
@@ -103,7 +103,7 @@
             <li><a href="/scans/new" class="{{if eq $p "/scans/new"}}menu-active{{end}}">
               <i data-lucide="upload"></i> Pemeriksaan Baru</a></li>
             <li><a href="/scans" class="{{if eq $p "/scans"}}menu-active{{end}}">
-              <i data-lucide="history"></i> Riwayat</a></li>
+              <i data-lucide="history"></i> Riwayat Pemeriksaan</a></li>
             <li><a href="/analytics" class="{{if eq $p "/analytics"}}menu-active{{end}}">
               <i data-lucide="bar-chart-3"></i> Analitik</a></li>
           </ul>

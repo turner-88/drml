@@ -1,12 +1,12 @@
 {{define "actions"}}
 <a href="/scans" class="btn btn-sm btn-outline">
-  <i data-lucide="arrow-left"></i> Riwayat
+  <i data-lucide="arrow-left"></i> Riwayat Pemeriksaan
 </a>
 <button type="button" onclick="window.print()" class="btn btn-sm btn-ghost">
   <i data-lucide="printer"></i> Cetak
 </button>
 <form method="post" action="/scans/{{.Scan.ID}}/delete"
-      onsubmit="return confirm('Hapus pemeriksaan ini beserta gambarnya? Tindakan ini tidak dapat dibatalkan.')">
+      onsubmit="return confirm('Yakin ingin menghapus hasil pemeriksaan ini beserta gambarnya? Tindakan ini tidak dapat dibatalkan.')">
   <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
   <button type="submit" class="btn btn-sm btn-danger">
     <i data-lucide="trash-2"></i> Hapus
@@ -30,14 +30,14 @@
   <div class="lg:col-span-3">
     <div class="card print-block">
       <div class="card-header">
-        <h2 class="card-title">Citra fundus</h2>
+        <h2 class="card-title">Foto Fundus</h2>
         {{if .HeatmapURL}}
         {{/* The checkbox drives the overlay through a :has() rule in app.src.css,
              so the cross-fade needs no JavaScript. */}}
         <label class="switch no-print">
           <input type="checkbox" class="overlay-switch" checked>
           <span class="track"></span>
-          <span class="label-text">Peta atensi</span>
+          <span class="label-text">Attention Map</span>
         </label>
         {{end}}
       </div>
@@ -45,18 +45,18 @@
       <div class="card-body">
         <div class="fundus-frame">
           <div class="overlay-stack">
-            <img src="{{.ImageURL}}" alt="Citra fundus pasien">
+            <img src="{{.ImageURL}}" alt="Foto fundus pasien">
             {{if .HeatmapURL}}
-            <img src="{{.HeatmapURL}}" alt="Peta atensi model" class="overlay-layer">
+            <img src="{{.HeatmapURL}}" alt="Attention map model" class="overlay-layer">
             {{end}}
           </div>
         </div>
 
         {{if .HeatmapURL}}
         <p class="hint">
-          Peta atensi (<em>attention rollout</em>) menunjukkan wilayah yang paling
-          memengaruhi keputusan model. Ini bukan penanda lesi dan tidak menggantikan
-          pemeriksaan klinis.
+          Attention map (<em>attention rollout</em>) memvisualisasikan area retina yang paling
+          memengaruhi estimasi model. Peta ini bukan penanda lesi pasti dan tidak menggantikan
+          evaluasi klinis dokter spesialis mata.
         </p>
         {{end}}
       </div>
@@ -66,7 +66,7 @@
   <!-- Result -->
   <div class="lg:col-span-2 flex flex-col gap-4 min-w-0">
     <div class="card print-block">
-      <div class="card-header"><h2 class="card-title">Hasil</h2></div>
+      <div class="card-header"><h2 class="card-title">Hasil Analisis</h2></div>
       <div class="card-body">
         {{if .Scan.PredictedGrade.Valid}}
         <div class="text-center py-2">
@@ -76,20 +76,20 @@
           <div class="num mt-3 text-3xl font-bold font-heading" style="color:var(--color-ink)">
             {{pct .Scan.Confidence.Float64}}
           </div>
-          <div class="hint">konfidens</div>
+          <div class="hint">confidence</div>
         </div>
 
         {{if isReferable .Scan.PredictedGrade.Int16}}
         <div role="alert" class="alert alert-warning">
           <i data-lucide="stethoscope"></i>
-          <span>Derajat &ge; 2 — disarankan rujukan ke dokter spesialis mata.</span>
+          <span>Derajat keparahan &ge; 2 — pasien disarankan segera dirujuk ke dokter spesialis mata (Sp.M).</span>
         </div>
         {{end}}
 
         {{if .LowConfidence}}
         <div role="alert" class="alert alert-error">
           <i data-lucide="help-circle"></i>
-          <span>Konfidens rendah. Model tidak yakin — tinjau manual.</span>
+          <span>Tingkat confidence rendah. Estimasi model kurang meyakinkan — disarankan evaluasi manual oleh klinisi.</span>
         </div>
         {{end}}
         {{else}}
@@ -100,7 +100,7 @@
 
     {{if .Probs}}
     <div class="card print-block">
-      <div class="card-header"><h2 class="card-title">Distribusi probabilitas</h2></div>
+      <div class="card-header"><h2 class="card-title">Distribusi Probabilitas</h2></div>
       <div class="card-body">
         {{range $i, $p := .Probs}}
         <div class="prob-row">
@@ -119,11 +119,11 @@
     {{end}}
 
     <div class="card print-block">
-      <div class="card-header"><h2 class="card-title">Rincian</h2></div>
+      <div class="card-header"><h2 class="card-title">Detail Pemeriksaan</h2></div>
       <div class="card-body">
         <dl class="text-sm divide-y divide-base-300 -my-2">
           <div class="flex justify-between gap-4 py-2">
-            <dt class="text-base-content/60">ID pasien</dt>
+            <dt class="text-base-content/60">ID Pasien</dt>
             <dd>{{if .Scan.PatientRef.Valid}}{{.Scan.PatientRef.String}}{{else}}<span class="muted">—</span>{{end}}</dd>
           </div>
           <div class="flex justify-between gap-4 py-2">
@@ -131,19 +131,19 @@
             <dd class="text-right">{{if .Scan.Notes.Valid}}{{.Scan.Notes.String}}{{else}}<span class="muted">—</span>{{end}}</dd>
           </div>
           <div class="flex justify-between gap-4 py-2">
-            <dt class="text-base-content/60">Waktu</dt>
+            <dt class="text-base-content/60">Waktu Pemeriksaan</dt>
             <dd>{{if .Scan.CreatedAt.Valid}}{{unixDate .Scan.CreatedAt.Int32}}{{end}}</dd>
           </div>
           <div class="flex justify-between gap-4 py-2">
-            <dt class="text-base-content/60">Operator</dt>
+            <dt class="text-base-content/60">Pemeriksa / Operator</dt>
             <dd>{{if .CreatedByName}}{{.CreatedByName}}{{else}}<span class="muted">—</span>{{end}}</dd>
           </div>
           <div class="flex justify-between gap-4 py-2">
-            <dt class="text-base-content/60">Waktu proses</dt>
+            <dt class="text-base-content/60">Durasi Inferensi</dt>
             <dd class="num">{{if .Scan.InferenceMs.Valid}}{{.Scan.InferenceMs.Int32}} ms{{else}}—{{end}}</dd>
           </div>
           <div class="flex justify-between gap-4 py-2">
-            <dt class="text-base-content/60 shrink-0">Model</dt>
+            <dt class="text-base-content/60 shrink-0">Versi Model</dt>
             <dd class="text-right text-xs break-all">{{.Scan.ModelID}}</dd>
           </div>
         </dl>
