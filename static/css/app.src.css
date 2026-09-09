@@ -94,7 +94,7 @@
            bg-base-100/90 backdrop-blur border-b border-base-300;
   }
   /* The drawer toggle is the only tap target up here, so it gets a full 44px
-     touch target and a 24px glyph rather than .btn's em-relative size. */
+     touch target and a 24px glyph, a step above the app-wide button icon scale. */
   .topbar .btn { @apply w-11 h-11; }
   .topbar .btn svg { @apply w-6 h-6; }
 
@@ -148,7 +148,6 @@
     @apply absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-primary;
   }
   .sidebar-foot { @apply mt-auto p-3 border-t border-base-300 flex items-center gap-2.5; }
-  .sidebar-foot .btn svg { @apply w-[18px] h-[18px]; }
 
   /* ---- Avatar / monogram ------------------------------------------- */
   .avatar {
@@ -178,7 +177,9 @@
            border-base-300 bg-base-100 text-base-content
            transition-colors hover:bg-base-200;
   }
-  .btn svg { @apply w-[1.05em] h-[1.05em]; }
+  /* Lucide glyphs are a 24px/2px-stroke grid; below ~16px they read thin, so
+     icon size is pinned per button size rather than following font-size. */
+  .btn svg { @apply w-[18px] h-[18px] shrink-0; }
   .btn-primary {
     @apply text-primary-content border-transparent hover:opacity-95;
     background: linear-gradient(140deg, #0ea5e9, #0369a1);
@@ -192,6 +193,12 @@
   .btn-sm      { @apply h-8 px-3 text-[13px]; }
   .btn-xs      { @apply h-7 px-2.5 text-xs; }
   .btn-sm.btn-square { @apply w-8; }
+  .btn-sm svg { @apply w-4 h-4; }
+  .btn-xs svg { @apply w-[14px] h-[14px]; }
+  /* On an icon-only button the glyph is the whole control, so it gets a step
+     more than a button whose label carries the meaning. */
+  .btn-square svg { @apply w-5 h-5; }
+  .btn-sm.btn-square svg { @apply w-[18px] h-[18px]; }
   .btn:disabled, .btn[disabled] { @apply opacity-50 cursor-not-allowed hover:bg-base-100; }
   .btn-primary:disabled, .btn-primary[disabled] { @apply hover:opacity-50; }
 
