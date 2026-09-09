@@ -36,6 +36,12 @@ RUN go mod download
 
 COPY . .
 
+# The stylesheet is compiled ahead of time by `make css` and committed, so this
+# stage needs no Node toolchain. Fail loudly if it is missing: the binary would
+# otherwise build and run perfectly while serving an entirely unstyled UI.
+RUN test -s static/css/app.css \
+ || { echo "static/css/app.css is missing - run 'make css' and commit it" >&2; exit 1; }
+
 # cgo is required: onnxruntime_go binds the ONNX Runtime C API.
 ENV CGO_ENABLED=1
 RUN go build -trimpath -ldflags="-s -w" -o /out/drml ./cmd/server \
@@ -56,7 +62,7 @@ WORKDIR /app
 
 COPY --from=build /out/drml /out/seed /usr/local/bin/
 # Model artifacts are part of the image so startup needs no network.
-COPY --chown=drml:drml model/vit_dr_int8.onnx model/labels.json model/preprocess.json ./model/
+COPY --chown=drml:drml model/vit_dr_int8.onnx model/labels.json model/preprocess.json model/gate.json ./model/
 
 RUN mkdir -p /app/static/uploads && chown -R drml:drml /app
 
@@ -66,6 +72,7 @@ ENV ORT_LIB_PATH=/usr/local/lib/libonnxruntime.so \
     MODEL_PATH=/app/model/vit_dr_int8.onnx \
     MODEL_LABELS_PATH=/app/model/labels.json \
     MODEL_PREPROCESS_PATH=/app/model/preprocess.json \
+    MODEL_GATE_PATH=/app/model/gate.json \
     STORAGE_LOCAL_DIR=/app/static/uploads \
     SERVER_HOST=0.0.0.0 \
     SERVER_PORT=8080 \

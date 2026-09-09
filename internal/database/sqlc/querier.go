@@ -23,6 +23,12 @@ type Querier interface {
 	// own scans, and passing sqlc.arg(all_scans) = 1 for admins keeps the two
 	// paths on a single statement so they cannot drift apart.
 	GetScanForUser(ctx context.Context, arg GetScanForUserParams) (Scan, error)
+	// Runtime-mutable application settings.
+	//
+	// Values are scalars stored as text and parsed by the typed accessors in
+	// package store. An absent row means "no preference expressed", which the
+	// caller resolves to its own default — it is not the same as a stored false.
+	GetSetting(ctx context.Context, settingKey string) (AppSetting, error)
 	GetUserByID(ctx context.Context, id int32) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
 	// Analytics aggregate in SQL, never in Go: the scan table's indexes
@@ -30,11 +36,21 @@ type Querier interface {
 	// cheap as the archive grows on a 2 GB box.
 	GradeDistribution(ctx context.Context, arg GradeDistributionParams) ([]GradeDistributionRow, error)
 	ListScans(ctx context.Context, arg ListScansParams) ([]Scan, error)
+	ListSettings(ctx context.Context) ([]AppSetting, error)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
 	// At ~70% accuracy the model's own uncertainty is the most useful signal it
 	// produces; this queue is what makes the tool honest rather than oracular.
 	LowConfidenceScans(ctx context.Context, arg LowConfidenceScansParams) ([]Scan, error)
 	RecentScans(ctx context.Context, arg RecentScansParams) ([]Scan, error)
+	// Buckets by local calendar day without consulting the MySQL session time
+	// zone. FROM_UNIXTIME() would: it resolves @@session.time_zone, which defaults
+	// to SYSTEM (the DB host's OS zone) and which the DSN never pins, so its day
+	// keys could disagree with the days Go zero-fills the trend chart with -- and a
+	// key that disagrees drops that day's scans silently. Integer division of a
+	// shifted epoch has no such dependency: the caller passes its own UTC offset.
+	//
+	// The shift stays out of the WHERE clause on purpose, so created_at is still
+	// bare there and idx_scan_created_at remains usable.
 	ScansPerDay(ctx context.Context, arg ScansPerDayParams) ([]ScansPerDayRow, error)
 	SetUserSuspended(ctx context.Context, arg SetUserSuspendedParams) error
 	// Referable DR (grade >= 2) is the clinically actionable threshold — the rate
@@ -42,6 +58,7 @@ type Querier interface {
 	SummaryStats(ctx context.Context, arg SummaryStatsParams) (SummaryStatsRow, error)
 	UpdateUser(ctx context.Context, arg UpdateUserParams) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
+	UpsertSetting(ctx context.Context, arg UpsertSettingParams) error
 }
 
 var _ Querier = (*Queries)(nil)

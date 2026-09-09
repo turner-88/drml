@@ -3,6 +3,8 @@
 !/static/uploads/.gitkeep
 .env
 model/.venv/
+# Downloaded calibration images for model/gate.py; re-fetched on demand.
+model/.cache/
 model/*.onnx
 model/testdata/golden.json
 .DS_Store

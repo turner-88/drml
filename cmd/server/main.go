@@ -49,6 +49,7 @@ func main() {
 		ModelPath:      cfg.Model.Path,
 		LabelsPath:     cfg.Model.LabelsPath,
 		PreprocessPath: cfg.Model.PreprocessPath,
+		GatePath:       cfg.Model.GatePath,
 		ORTLibPath:     cfg.ORT.LibPath,
 		IntraOpThreads: cfg.ORT.IntraOpNumThread,
 		InterOpThreads: cfg.ORT.InterOpNumThread,
@@ -70,6 +71,13 @@ func main() {
 	}
 
 	st := store.New(db)
+
+	// A stored administrator preference overrides gate.json's own flag. This
+	// runs after the store exists rather than beside infer.New, and a database
+	// problem here must not stop the server booting — it just leaves the gate
+	// at the file's default, which is the safe direction.
+	applyGateSetting(st, engine)
+
 	scans := scan.NewService(engine, st, blobs, cfg.Model.HeatmapEnabled)
 
 	h, err := handler.New(cfg, st, scans, engine, blobs, assets.TemplateFS)
@@ -169,5 +177,31 @@ func newStorage(cfg *config.Config) (storage.Storage, string, error) {
 		}
 		log.Printf("Storage: local directory %q", s.Root())
 		return s, s.Root(), nil
+	}
+}
+
+// applyGateSetting restores the administrator's non-fundus gate preference.
+//
+// gate.json's `enabled` is only the boot default; once an admin has flipped the
+// switch at /admin/settings the database is the authority, and that has to
+// survive a restart.
+func applyGateSetting(st *store.Store, engine *infer.Engine) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	want, err := st.GetBoolSetting(ctx, store.SettingGateEnabled, engine.GateEnabled())
+	if err != nil {
+		log.Printf("WARNING: read gate setting: %v (keeping gate.json default)", err)
+		return
+	}
+	if !engine.SetGateEnabled(want) {
+		log.Println("WARNING: stored setting asks for the non-fundus gate but no " +
+			"calibration is loaded — run model/gate.py")
+		return
+	}
+	if engine.GateEnabled() {
+		log.Println("Non-fundus gate: ENABLED")
+	} else {
+		log.Println("Non-fundus gate: DISABLED — every decodable image will be graded")
 	}
 }

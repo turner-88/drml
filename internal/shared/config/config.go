@@ -62,6 +62,10 @@ type ModelConfig struct {
 	// hardcodes class names or normalization constants.
 	LabelsPath     string
 	PreprocessPath string
+	// GatePath holds the calibrated thresholds for the non-fundus gate, written
+	// by model/gate.py. Absent, the gate is disabled and every decodable image
+	// is graded — see MODEL_GATE_ENABLED.
+	GatePath string
 	// HeatmapEnabled controls the attention-rollout overlay.
 	//
 	// Rollout is forward-only and correct as implemented, but on the default
@@ -148,6 +152,7 @@ func Load() *Config {
 			ID:             getEnv("MODEL_ID", "Kontawat/vit-diabetic-retinopathy-classification"),
 			LabelsPath:     getEnv("MODEL_LABELS_PATH", "model/labels.json"),
 			PreprocessPath: getEnv("MODEL_PREPROCESS_PATH", "model/preprocess.json"),
+			GatePath:       getEnv("MODEL_GATE_PATH", "model/gate.json"),
 			HeatmapEnabled: getEnvBool("MODEL_HEATMAP_ENABLED", true),
 		},
 		ORT: ORTConfig{

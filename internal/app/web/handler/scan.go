@@ -75,6 +75,13 @@ func (h *Handler) CreateScan(w http.ResponseWriter, r *http.Request) {
 			h.renderScanError(w, r, "Server sedang sibuk memproses pemeriksaan lain. Coba lagi sebentar.")
 		case errors.Is(err, scansvc.ErrUnsupportedImage):
 			h.renderScanError(w, r, "Berkas tidak dapat dibaca sebagai gambar.")
+		case errors.Is(err, infer.ErrNotFundus):
+			// The failing feature stays in the log: it would mean nothing to a
+			// clinician, and spelling it out would explain how to get past it.
+			log.Printf("scan create: gate rejected upload: %v", err)
+			h.renderScanError(w, r, "Gambar tidak dikenali sebagai foto fundus retina. "+
+				"Pastikan yang diunggah adalah hasil kamera fundus, bukan foto biasa "+
+				"atau tangkapan layar.")
 		default:
 			log.Printf("scan create: %v", err)
 			h.renderScanError(w, r, "Gagal memproses pemeriksaan: "+err.Error())
@@ -133,7 +140,6 @@ func (h *Handler) ScanDetail(w http.ResponseWriter, r *http.Request) {
 		"HeatmapURL": h.blobURL(r.Context(), row.HeatmapKey.String),
 		"LowConfidence": row.Confidence.Valid &&
 			row.Confidence.Float64 < LowConfidenceThreshold,
-		"GradeLabels": []string{"Tidak ada DR", "Ringan", "Sedang", "Berat", "Proliferatif"},
 	}
 	if row.CreatedBy.Valid {
 		if creator, err := h.store.GetUserByID(r.Context(), row.CreatedBy.Int32); err == nil {
@@ -163,12 +169,6 @@ func (h *Handler) DeleteScan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// HTMX issues this via hx-delete; redirect the browser via HX-Redirect.
-	if r.Header.Get("HX-Request") != "" {
-		w.Header().Set("HX-Redirect", "/scans")
-		w.WriteHeader(http.StatusOK)
-		return
-	}
 	http.Redirect(w, r, "/scans", http.StatusSeeOther)
 }
 

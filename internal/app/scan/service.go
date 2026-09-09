@@ -82,6 +82,16 @@ func (s *Service) Create(ctx context.Context, r io.Reader, in Input) (int32, err
 		return 0, ErrUnsupportedImage
 	}
 
+	// First-tier gate, before anything is stored and before Predict competes
+	// for the single inference slot. A non-fundus upload leaves no blob and no
+	// row: it is not a failed screening, it is not a screening at all.
+	if rep := s.engine.CheckImage(img); !rep.Passed {
+		return 0, fmt.Errorf("%w (%s score=%.3f red=%.2f contrast=%.2f)",
+			infer.ErrNotFundus, rep.Reason,
+			rep.Metrics["score"], rep.Metrics["red_ratio"],
+			rep.Metrics["centre_contrast"])
+	}
+
 	sum := sha256.Sum256(raw)
 	digest := hex.EncodeToString(sum[:])
 
@@ -107,16 +117,22 @@ func (s *Service) Create(ctx context.Context, r io.Reader, in Input) (int32, err
 
 	res, err := s.engine.Predict(ctx, img)
 	if err != nil {
-		// Keep the image and record the failure, so the clinician sees an
-		// explicit error row instead of the upload silently vanishing.
-		if errors.Is(err, infer.ErrBusy) || errors.Is(err, context.Canceled) ||
+		// Transient failures, and gate rejections, must not leave a misleading
+		// 'failed' row behind. ErrNotFundus is here for a different reason from
+		// the rest: it is a verdict about the upload rather than a failure to
+		// grade it, so there is no screening to record. The image is already
+		// stored by this point, so drop it.
+		if errors.Is(err, infer.ErrBusy) || errors.Is(err, infer.ErrNotFundus) ||
+			errors.Is(err, context.Canceled) ||
 			errors.Is(err, context.DeadlineExceeded) {
-			// Transient: don't leave a misleading 'failed' row behind.
 			if delErr := s.storage.Delete(ctx, imageKey); delErr != nil {
 				log.Printf("scan: orphaned image %s: %v", imageKey, delErr)
 			}
 			return 0, err
 		}
+		// Everything else: keep the image and record the failure, so the
+		// clinician sees an explicit error row instead of the upload silently
+		// vanishing.
 		params.Status = "failed"
 		params.ErrorMessage = store.NullString(truncate(err.Error(), 255))
 		id, dbErr := s.store.CreateScan(ctx, params)

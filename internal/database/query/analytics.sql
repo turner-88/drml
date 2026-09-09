@@ -14,17 +14,26 @@ GROUP BY predicted_grade
 ORDER BY predicted_grade;
 
 -- name: ScansPerDay :many
+-- Buckets by local calendar day without consulting the MySQL session time
+-- zone. FROM_UNIXTIME() would: it resolves @@session.time_zone, which defaults
+-- to SYSTEM (the DB host's OS zone) and which the DSN never pins, so its day
+-- keys could disagree with the days Go zero-fills the trend chart with -- and a
+-- key that disagrees drops that day's scans silently. Integer division of a
+-- shifted epoch has no such dependency: the caller passes its own UTC offset.
+--
+-- The shift stays out of the WHERE clause on purpose, so created_at is still
+-- bare there and idx_scan_created_at remains usable.
 SELECT
-  FROM_UNIXTIME(created_at, '%Y-%m-%d') AS day,
+  (created_at + sqlc.arg(tz_offset)) DIV 86400 AS day_index,
   COUNT(*) AS total,
-  SUM(predicted_grade >= 2) AS referable
+  COALESCE(SUM(predicted_grade >= 2), 0) AS referable
 FROM `scan`
 WHERE status = 'done'
   AND (sqlc.arg(all_scans) = 1 OR created_by = sqlc.arg(created_by))
   AND (sqlc.narg(from_ts) IS NULL OR created_at >= sqlc.narg(from_ts))
   AND (sqlc.narg(to_ts) IS NULL OR created_at <= sqlc.narg(to_ts))
-GROUP BY day
-ORDER BY day;
+GROUP BY day_index
+ORDER BY day_index;
 
 -- name: ConfidenceByGrade :many
 SELECT

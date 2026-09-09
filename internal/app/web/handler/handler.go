@@ -36,7 +36,10 @@ type Handler struct {
 	storage storage.Storage
 
 	tmplFS fs.FS
-	pages  map[string]*template.Template
+	// Pages render inside the authenticated shell; guest pages render inside
+	// the split-screen sign-in layout, which has no sidebar or nav.
+	pages map[string]*template.Template
+	guest map[string]*template.Template
 }
 
 // New parses every page template up front so a syntax error fails at startup
@@ -51,24 +54,38 @@ func New(
 ) (*Handler, error) {
 	h := &Handler{
 		cfg: cfg, store: st, scans: scans, engine: engine,
-		storage: blobs, tmplFS: tmplFS, pages: map[string]*template.Template{},
+		storage: blobs, tmplFS: tmplFS,
+		pages: map[string]*template.Template{},
+		guest: map[string]*template.Template{},
+	}
+
+	parse := func(layout, page string) (*template.Template, error) {
+		return template.New(layout).Funcs(h.funcs()).ParseFS(
+			tmplFS,
+			"template/layouts/"+layout,
+			"template/partials/*.html",
+			"template/pages/"+page+".html",
+		)
 	}
 
 	pages := []string{
-		"login", "dashboard", "scan_new", "scan_detail", "scan_list",
-		"analytics", "users", "user_form",
+		"dashboard", "scan_new", "scan_detail", "scan_list",
+		"analytics", "users", "user_form", "settings",
 	}
 	for _, name := range pages {
-		t, err := template.New("base.html").Funcs(h.funcs()).ParseFS(
-			tmplFS,
-			"template/layouts/base.html",
-			"template/partials/*.html",
-			"template/pages/"+name+".html",
-		)
+		t, err := parse("base.html", name)
 		if err != nil {
 			return nil, fmt.Errorf("parse template %q: %w", name, err)
 		}
 		h.pages[name] = t
+	}
+
+	for _, name := range []string{"login"} {
+		t, err := parse("guest.html", name)
+		if err != nil {
+			return nil, fmt.Errorf("parse guest template %q: %w", name, err)
+		}
+		h.guest[name] = t
 	}
 	return h, nil
 }
@@ -83,6 +100,8 @@ func (h *Handler) funcs() template.FuncMap {
 		"unixDate":     func(ts int32) string { return time.Unix(int64(ts), 0).Format("02 Jan 2006 15:04") },
 		"unixDateOnly": func(ts int32) string { return time.Unix(int64(ts), 0).Format("02 Jan 2006") },
 		"add":          func(a, b int) int { return a + b },
+		"sub":          func(a, b int) int { return a - b },
+		"initials":     initials,
 		// Grades cross int/int16 boundaries between the DB, templates and the
 		// label helpers; these keep the templates free of conversion noise.
 		"int":         func(v int16) int { return int(v) },
@@ -92,8 +111,7 @@ func (h *Handler) funcs() template.FuncMap {
 	}
 }
 
-// render writes a page, reporting template errors loudly rather than serving a
-// half-written response body.
+// render writes a page inside the authenticated shell.
 func (h *Handler) render(w http.ResponseWriter, r *http.Request, page string, data map[string]any) {
 	t, ok := h.pages[page]
 	if !ok {
@@ -101,13 +119,28 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, page string, da
 		http.Error(w, "Halaman tidak ditemukan", http.StatusInternalServerError)
 		return
 	}
-
 	h.withCommon(r, data)
+	h.execute(w, "base.html", page, t, data)
+}
 
-	// Render into a buffer first so a mid-template failure does not emit a
-	// partial page with a 200 status.
+// renderGuest writes a page inside the sign-in layout, for visitors who have no
+// session yet and so no sidebar, nav or user menu to render.
+func (h *Handler) renderGuest(w http.ResponseWriter, r *http.Request, page string, data map[string]any) {
+	t, ok := h.guest[page]
+	if !ok {
+		log.Printf("renderGuest: unknown page %q", page)
+		http.Error(w, "Halaman tidak ditemukan", http.StatusInternalServerError)
+		return
+	}
+	h.withCommon(r, data)
+	h.execute(w, "guest.html", page, t, data)
+}
+
+// execute renders into a buffer first, so a mid-template failure does not emit
+// a partial page with a 200 status.
+func (h *Handler) execute(w http.ResponseWriter, layout, page string, t *template.Template, data map[string]any) {
 	var buf strings.Builder
-	if err := t.ExecuteTemplate(&buf, "base.html", data); err != nil {
+	if err := t.ExecuteTemplate(&buf, layout, data); err != nil {
 		log.Printf("render %q: %v", page, err)
 		http.Error(w, "Terjadi kesalahan saat menampilkan halaman", http.StatusInternalServerError)
 		return
@@ -134,6 +167,12 @@ func (h *Handler) withCommon(r *http.Request, data map[string]any) {
 	// i means grade i, every displayed label is an unverified assumption.
 	data["ModelID"] = h.engine.ModelID()
 	data["OrderingVerified"] = h.engine.OrderingVerified()
+
+	// Also banner-surfaced: with the non-fundus gate off, every decodable image
+	// is graded, and a clinician reading a result needs to know that whether or
+	// not they are the administrator who turned it off.
+	data["GateEnabled"] = h.engine.GateEnabled()
+	data["GateAvailable"] = h.engine.GateAvailable()
 }
 
 // scope resolves the (allScans, createdBy) pair for the current user.
@@ -167,20 +206,31 @@ func gradeLabelID(g int16) string {
 	}
 }
 
-// gradeBadgeClass maps severity to DaisyUI badge colours; grades 2+ are
-// referable and use warning/error tones.
+// gradeBadgeClass names the pill modifier for a grade. The colours themselves
+// live in the severity ramp in static/css/app.src.css, so the green-to-red
+// progression is defined once and shared with the analytics charts.
 func gradeBadgeClass(g int16) string {
-	switch g {
+	if g < 0 || g >= infer.NumGrades {
+		return "pill-muted"
+	}
+	return fmt.Sprintf("pill-grade-%d", g)
+}
+
+// initials renders a monogram for the sidebar avatar: two letters from a
+// two-word name, otherwise the first character.
+func initials(name string) string {
+	fields := strings.Fields(name)
+	switch len(fields) {
 	case 0:
-		return "badge-success"
+		return "?"
 	case 1:
-		return "badge-info"
-	case 2:
-		return "badge-warning"
-	case 3, 4:
-		return "badge-error"
+		r := []rune(fields[0])
+		if len(r) >= 2 {
+			return strings.ToUpper(string(r[:2]))
+		}
+		return strings.ToUpper(string(r))
 	default:
-		return "badge-ghost"
+		return strings.ToUpper(string([]rune(fields[0])[:1]) + string([]rune(fields[1])[:1]))
 	}
 }
 
@@ -195,19 +245,41 @@ func atoiDefault(s string, def int) int {
 	return v
 }
 
-// parseDateParam accepts YYYY-MM-DD and returns a unix timestamp.
-func parseDateParam(s string, endOfDay bool) (int32, bool) {
+// parseLocalDay parses YYYY-MM-DD as midnight in the server's local zone.
+//
+// Local rather than UTC, because unixDate renders timestamps with time.Unix(),
+// which is local: a filter for "11 Agu" has to cover the same 24 hours the
+// list prints as 11 Agu. Parsed as UTC it was off by the zone offset - seven
+// hours on WIB, enough to push the first and last scans of every day into the
+// neighbouring one.
+func parseLocalDay(s string) (time.Time, bool) {
 	if s == "" {
-		return 0, false
+		return time.Time{}, false
 	}
-	t, err := time.Parse("2006-01-02", s)
+	t, err := time.ParseInLocation("2006-01-02", s, time.Local)
 	if err != nil {
+		return time.Time{}, false
+	}
+	return t, true
+}
+
+// parseDateParam accepts YYYY-MM-DD and returns the unix timestamp of that
+// local calendar day's opening or closing second.
+func parseDateParam(s string, endOfDay bool) (int32, bool) {
+	t, ok := parseLocalDay(s)
+	if !ok {
 		return 0, false
 	}
 	if endOfDay {
-		t = t.Add(24*time.Hour - time.Second)
+		t = endOfLocalDay(t)
 	}
 	return int32(t.Unix()), true
+}
+
+// endOfLocalDay is the last second of the calendar day t falls in. AddDate
+// rather than +24h: a day spanning a DST transition is not 24 hours long.
+func endOfLocalDay(t time.Time) time.Time {
+	return t.AddDate(0, 0, 1).Add(-time.Second)
 }
 
 // nullTS builds a nullable timestamp for the optional date filters.

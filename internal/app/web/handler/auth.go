@@ -20,7 +20,7 @@ func (h *Handler) LoginPage(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("blocked") == "1" {
 		data["Error"] = "Terlalu banyak percobaan masuk. Coba lagi dalam 15 menit."
 	}
-	h.render(w, r, "login", data)
+	h.renderGuest(w, r, "login", data)
 }
 
 // Login authenticates and issues the session cookie.
@@ -31,7 +31,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	fail := func() {
 		// One message for every failure mode: distinguishing "no such user"
 		// from "wrong password" would let an attacker enumerate accounts.
-		h.render(w, r, "login", map[string]any{
+		h.renderGuest(w, r, "login", map[string]any{
 			"Title":    "Masuk",
 			"Error":    "Nama pengguna atau kata sandi salah.",
 			"Username": username,
@@ -54,7 +54,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if user.SuspendedAt.Valid {
-		h.render(w, r, "login", map[string]any{
+		h.renderGuest(w, r, "login", map[string]any{
 			"Title": "Masuk",
 			"Error": "Akun ini ditangguhkan. Hubungi administrator.",
 		})

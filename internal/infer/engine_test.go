@@ -17,6 +17,13 @@ import (
 // they are absent (CI without the model) or when onnxruntime is not installed.
 func newTestEngine(t *testing.T) *Engine {
 	t.Helper()
+	// An empty GatePath is the "no gate.json" case, which must degrade to a
+	// disabled gate rather than failing startup.
+	return newTestEngineWithGate(t, "")
+}
+
+func newTestEngineWithGate(t *testing.T, gatePath string) *Engine {
+	t.Helper()
 	dir := modelDir(t)
 
 	modelPath := filepath.Join(dir, "vit_dr_int8.onnx")
@@ -28,6 +35,7 @@ func newTestEngine(t *testing.T) *Engine {
 		ModelPath:      modelPath,
 		LabelsPath:     filepath.Join(dir, "labels.json"),
 		PreprocessPath: filepath.Join(dir, "preprocess.json"),
+		GatePath:       gatePath,
 		ORTLibPath:     ortLibPathForTest(),
 		IntraOpThreads: 2,
 		InterOpThreads: 1,

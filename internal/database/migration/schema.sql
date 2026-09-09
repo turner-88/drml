@@ -53,4 +53,15 @@ CREATE TABLE `scan` (
   CONSTRAINT `fk_scan_created_by` FOREIGN KEY (`created_by`) REFERENCES `user` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+DROP TABLE IF EXISTS `app_setting`;
+CREATE TABLE `app_setting` (
+  `setting_key` varchar(64) NOT NULL,
+  `setting_value` varchar(255) NOT NULL COMMENT 'scalar; parsed by the typed accessor in store',
+  `updated_at` int(11) DEFAULT NULL,
+  `updated_by` int(11) DEFAULT NULL,
+  PRIMARY KEY (`setting_key`),
+  KEY `idx_app_setting_updated_by` (`updated_by`),
+  CONSTRAINT `fk_app_setting_updated_by` FOREIGN KEY (`updated_by`) REFERENCES `user` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 SET foreign_key_checks = 1;

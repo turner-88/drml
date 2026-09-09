@@ -1,0 +1,102 @@
+{{define "content"}}
+<div class="max-w-2xl">
+  {{if .Error}}
+  <div role="alert" class="alert alert-error mb-4">
+    <i data-lucide="alert-circle"></i><span>{{.Error}}</span>
+  </div>
+  {{end}}
+
+  {{if .Saved}}
+  <div role="alert" class="alert alert-success mb-4">
+    <i data-lucide="check-circle"></i><span>Pengaturan disimpan.</span>
+  </div>
+  {{end}}
+
+  <form method="post" action="/admin/settings">
+    <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Filter foto non-fundus</h2>
+        <span class="pill {{if .GateEnabled}}pill-success{{else}}pill-warning{{end}}">
+          <span class="dot"></span>{{if .GateEnabled}}Aktif{{else}}Nonaktif{{end}}
+        </span>
+      </div>
+
+      <div class="card-body gap-4">
+        <p class="text-sm text-base-content/70">
+          Menolak unggahan yang bukan foto kamera fundus sebelum dianalisis.
+          Model klasifikasi tidak dapat melakukan ini sendiri: model hanya
+          mengenal lima tingkat retinopati, sehingga foto biasa pun tetap
+          diberi nilai dengan penuh keyakinan.
+        </p>
+
+        <label class="switch">
+          <input type="checkbox" name="gate_enabled"
+                 {{if .GateEnabled}}checked{{end}}
+                 {{if not .GateAvailable}}disabled{{end}}>
+          <span class="track"></span>
+          <span class="label-text">Tolak gambar yang bukan foto fundus</span>
+        </label>
+
+        {{if not .GateAvailable}}
+        <div role="alert" class="alert alert-warning">
+          <i data-lucide="alert-triangle"></i>
+          <div>
+            <div class="font-semibold">Belum dikalibrasi</div>
+            <div><code>model/gate.json</code> tidak ditemukan, sehingga tidak ada
+              ambang batas yang bisa diterapkan. Jalankan
+              <code>model/gate.py</code> terlebih dahulu.</div>
+          </div>
+        </div>
+        {{else}}
+          {{with .Calibration}}
+          <div>
+            <div class="eyebrow mb-2">Hasil kalibrasi</div>
+            <div class="stats">
+              <div class="stat">
+                <div class="stat-title">Foto fundus diterima</div>
+                <div class="stat-value num">{{pct .FundusAdmitted}}</div>
+                <div class="stat-desc">dari {{.FundusImages}} citra fundus</div>
+              </div>
+              <div class="stat">
+                <div class="stat-title">Foto non-fundus lolos</div>
+                <div class="stat-value num">{{pct .NonFundusAdmitted}}</div>
+                <div class="stat-desc">dari {{.NonFundusImages}} citra non-fundus</div>
+              </div>
+              <div class="stat">
+                <div class="stat-title">AUROC</div>
+                <div class="stat-value num">{{printf "%.4f" .ScoreAUROC}}</div>
+                <div class="stat-desc">daya pisah skor gerbang</div>
+              </div>
+              <div class="stat">
+                <div class="stat-title">Diukur pada</div>
+                <div class="stat-value num">{{add .FundusImages .NonFundusImages}}</div>
+                <div class="stat-desc">citra kalibrasi</div>
+              </div>
+            </div>
+            <p class="hint mt-3">
+              Ambang batas dipilih untuk melindungi foto fundus asli: menolak
+              pemeriksaan yang sah lebih merugikan daripada meloloskan foto yang
+              meragukan, karena hasil berkeyakinan rendah sudah ditandai
+              tersendiri. Ubah nilainya lewat <code>model/gate.py</code>, bukan
+              dari halaman ini.
+            </p>
+          </div>
+          {{end}}
+        {{end}}
+
+        <div role="alert" class="alert alert-warning">
+          <i data-lucide="alert-triangle"></i>
+          <div>Jika dinonaktifkan, <strong>setiap gambar yang dapat dibaca akan
+            dianalisis dan disimpan</strong> — termasuk foto biasa dan tangkapan layar.
+            Peringatan akan tampil di seluruh halaman selama filter nonaktif.</div>
+        </div>
+      </div>
+
+      <div class="card-foot">
+        <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> Simpan</button>
+      </div>
+    </div>
+  </form>
+</div>
+{{end}}

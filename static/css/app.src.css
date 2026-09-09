@@ -1,0 +1,494 @@
+@import "tailwindcss";
+
+/* Scan the server-rendered templates for the utility classes actually used. */
+@source "../../template";
+
+/* ================================================================== */
+/* Theme — DRML clinical identity                                      */
+/* Sky/blue brand + a five-step diabetic-retinopathy severity ramp.    */
+/* Defining colour tokens here regenerates the semantic utilities      */
+/* (bg-primary, text-primary-content, border-base-300, bg-primary/10…) */
+/* without pulling in a component framework.                           */
+/* ================================================================== */
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-heading: "Sora", ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  --color-primary: #0284c7;
+  --color-primary-content: #ffffff;
+  --color-secondary: #0d9488;
+  --color-secondary-content: #ffffff;
+  --color-accent: #d97706;
+  --color-accent-content: #ffffff;
+  --color-neutral: #0f2634;
+  --color-neutral-content: #ffffff;
+
+  --color-base-100: #ffffff;
+  --color-base-200: #f2f6f9;
+  --color-base-300: #e2eaf0;
+  --color-base-content: #1f2933;
+  --color-ink: #0f2634;
+
+  --color-info: #0284c7;
+  --color-info-content: #ffffff;
+  --color-success: #16a34a;
+  --color-success-content: #ffffff;
+  --color-warning: #d97706;
+  --color-warning-content: #ffffff;
+  --color-error: #dc2626;
+  --color-error-content: #ffffff;
+
+  /* Severity ramp for the five DR grades. Defined once here and consumed by
+     result pills, the distribution strip, the confidence bars and the trend
+     chart, so severity colour has exactly one source of truth. */
+  --color-sev-0: #16a34a;
+  --color-sev-1: #65a30d;
+  --color-sev-2: #ca8a04;
+  --color-sev-3: #ea580c;
+  --color-sev-4: #dc2626;
+}
+
+/* ================================================================== */
+/* Base                                                                */
+/* ================================================================== */
+@layer base {
+  body {
+    @apply font-sans text-base-content antialiased overflow-x-hidden;
+  }
+  h1, h2, h3, h4, .card-title {
+    @apply font-heading tracking-tight;
+    color: var(--color-ink);
+  }
+  /* Proportional figures make stat values jitter as they update; tabular
+     figures keep the columns aligned. */
+  .num, .stat-value, .stat-num, table td.num, table th.num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+}
+
+/* ================================================================== */
+/* Components                                                          */
+/* ================================================================== */
+@layer components {
+
+  /* ---- Micro-label -------------------------------------------------- */
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.08em];
+    color: color-mix(in srgb, var(--color-base-content) 45%, transparent);
+  }
+
+  /* ---- App shell ---------------------------------------------------- */
+  .drawer { @apply relative; }
+  .drawer-toggle { @apply sr-only; }
+  .drawer-content { @apply min-h-screen flex flex-col; }
+  .main { @apply px-5 md:px-8 pt-5 md:pt-8 pb-10 w-full flex-1; }
+
+  .page-footer {
+    @apply px-5 md:px-8 pb-5 md:pb-8 pt-4
+           border-t border-base-300 text-xs text-base-content/60;
+  }
+
+  .topbar {
+    @apply sticky top-0 z-10 flex items-center gap-2 h-14 px-4
+           bg-base-100/90 backdrop-blur border-b border-base-300;
+  }
+
+  .drawer-side { @apply fixed inset-0 z-40 invisible; }
+  .drawer-side > aside { @apply h-full -translate-x-full transition-transform duration-200; }
+  .drawer-overlay { @apply absolute inset-0 bg-black/40 opacity-0 transition-opacity duration-200; }
+  .drawer-toggle:checked ~ .drawer-side { @apply visible; }
+  .drawer-toggle:checked ~ .drawer-side > aside { @apply translate-x-0; }
+  .drawer-toggle:checked ~ .drawer-side .drawer-overlay { @apply opacity-100; }
+
+  @media (min-width: 1024px) {
+    .lg\:drawer-open { @apply flex; }
+    .lg\:drawer-open .drawer-content { @apply flex-1 min-w-0; }
+    .lg\:drawer-open .drawer-side {
+      @apply static visible z-auto w-64 shrink-0 self-stretch;
+      order: -1;
+    }
+    .lg\:drawer-open .drawer-side > aside { @apply translate-x-0; }
+    .lg\:drawer-open .drawer-overlay { @apply hidden; }
+  }
+
+  /* ---- Sidebar ------------------------------------------------------ */
+  .sidebar {
+    @apply w-64 min-h-full flex flex-col bg-base-100 border-e border-base-300;
+  }
+  .brand { @apply flex items-center gap-2.5 px-5 h-16 border-b border-base-300; }
+  .brand-mark {
+    @apply grid place-items-center w-9 h-9 rounded-xl text-primary-content shrink-0;
+    background: linear-gradient(140deg, #0ea5e9, #0369a1);
+  }
+  .brand-mark svg { @apply w-[18px] h-[18px]; }
+  .nav-scroll { @apply flex-1 overflow-y-auto py-3; }
+  .nav-section { @apply px-3 mb-1; }
+  .nav-label {
+    @apply px-2 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.09em];
+    color: color-mix(in srgb, var(--color-base-content) 38%, transparent);
+  }
+
+  .menu { @apply flex flex-col gap-0.5; }
+  .menu li > a {
+    @apply relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium
+           text-base-content/75 transition-colors hover:bg-base-200 hover:text-base-content;
+  }
+  .menu li > a svg { @apply w-[18px] h-[18px] shrink-0 opacity-70; }
+  .menu li > a.menu-active {
+    @apply bg-primary/10 text-primary font-semibold hover:bg-primary/10 hover:text-primary;
+  }
+  .menu li > a.menu-active svg { @apply opacity-100; }
+  .menu li > a.menu-active::before {
+    content: "";
+    @apply absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full bg-primary;
+  }
+  .sidebar-foot { @apply mt-auto p-3 border-t border-base-300 flex items-center gap-2.5; }
+  .sidebar-foot .btn svg { @apply w-[18px] h-[18px]; }
+
+  /* ---- Avatar / monogram ------------------------------------------- */
+  .avatar {
+    @apply grid place-items-center rounded-full font-semibold shrink-0
+           bg-primary/12 text-primary text-xs w-9 h-9;
+    font-family: var(--font-heading);
+  }
+  .avatar-lg { @apply w-14 h-14 text-base rounded-2xl; }
+
+  /* ---- Person cell (avatar + name/sub) ------------------------------ */
+  .who      { @apply flex items-center gap-3 min-w-0; }
+  .who-name { @apply text-sm font-medium truncate; }
+  .who-sub  { @apply text-xs text-base-content/50 truncate; }
+
+  /* ---- Page header -------------------------------------------------- */
+  .page-header {
+    @apply flex flex-wrap items-end justify-between gap-4 mb-6 pb-5 border-b border-base-300;
+  }
+  .page-title { @apply text-[1.6rem] leading-tight font-bold; }
+  .page-subtitle { @apply text-sm mt-1 text-base-content/60; }
+  .page-actions { @apply flex flex-wrap items-center gap-2; }
+
+  /* ---- Buttons ------------------------------------------------------ */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 select-none cursor-pointer
+           h-10 px-4 rounded-lg border text-sm font-medium
+           border-base-300 bg-base-100 text-base-content
+           transition-colors hover:bg-base-200;
+  }
+  .btn svg { @apply w-[1.05em] h-[1.05em]; }
+  .btn-primary {
+    @apply text-primary-content border-transparent hover:opacity-95;
+    background: linear-gradient(140deg, #0ea5e9, #0369a1);
+  }
+  .btn-outline { @apply bg-transparent border-base-300 text-base-content hover:bg-base-200; }
+  .btn-ghost   { @apply bg-transparent border-transparent hover:bg-base-200; }
+  .btn-active  { @apply bg-primary/10 border-primary/20 text-primary; }
+  .btn-danger  { @apply bg-transparent border-error/30 text-error; }
+  .btn-danger:hover { background: color-mix(in srgb, var(--color-error) 8%, white); }
+  .btn-square  { @apply w-10 px-0 aspect-square; }
+  .btn-sm      { @apply h-8 px-3 text-[13px]; }
+  .btn-xs      { @apply h-7 px-2.5 text-xs; }
+  .btn-sm.btn-square { @apply w-8; }
+  .btn:disabled, .btn[disabled] { @apply opacity-50 cursor-not-allowed hover:bg-base-100; }
+  .btn-primary:disabled, .btn-primary[disabled] { @apply hover:opacity-50; }
+
+  /* ---- Cards -------------------------------------------------------- */
+  .card {
+    @apply rounded-2xl border border-base-300 bg-base-100 overflow-hidden;
+    box-shadow: 0 1px 2px rgba(15, 38, 52, 0.04), 0 1px 3px rgba(15, 38, 52, 0.03);
+  }
+  .card-body { @apply p-5 flex flex-col gap-3; }
+  .card-header {
+    @apply flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-5 py-4 border-b border-base-300;
+  }
+  .card-title { @apply text-base font-semibold min-w-0; }
+  .card-note { @apply text-sm text-base-content/55; }
+  .card-foot { @apply flex flex-wrap justify-end gap-2 px-5 py-4 border-t border-base-300; }
+
+  /* ---- Stat cards --------------------------------------------------- */
+  .stat-card {
+    @apply flex items-center gap-4 rounded-2xl border border-base-300 bg-base-100 p-5;
+    box-shadow: 0 1px 2px rgba(15, 38, 52, 0.04);
+  }
+  .stat-ic { @apply grid place-items-center w-12 h-12 rounded-xl shrink-0; }
+  .stat-ic svg { @apply w-5 h-5; }
+  .stat-num { @apply text-[1.7rem] leading-none font-bold font-heading; }
+  .stat-lbl { @apply text-sm text-base-content/60 mt-1; }
+  .stat-sub { @apply text-xs text-base-content/45 mt-0.5; }
+
+  .stats { @apply grid rounded-xl border border-base-300 bg-base-100 divide-y divide-base-300 sm:grid-cols-2 sm:divide-y-0 sm:divide-x; }
+  .stat { @apply px-5 py-4; }
+  .stat-title { @apply text-xs uppercase tracking-wide text-base-content/50; }
+  .stat-value { @apply text-2xl font-bold font-heading; }
+  .stat-desc { @apply text-xs text-base-content/55 mt-0.5; }
+
+  /* ---- Pills / badges ---------------------------------------------- */
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5
+           text-xs font-medium border border-base-300 bg-base-200 text-base-content/80;
+  }
+  .pill svg { @apply w-3 h-3; }
+  .pill-success { @apply border-transparent; background: color-mix(in srgb, var(--color-success) 14%, white); color: #15803d; }
+  .pill-warning { @apply border-transparent; background: color-mix(in srgb, var(--color-warning) 16%, white); color: #b45309; }
+  .pill-danger  { @apply border-transparent; background: color-mix(in srgb, var(--color-error) 12%, white); color: #b91c1c; }
+  .pill-info    { @apply border-transparent; background: color-mix(in srgb, var(--color-info) 12%, white); color: #0369a1; }
+  .pill-muted   { @apply bg-base-200 border-transparent text-base-content/60; }
+  .pill-lg      { @apply text-sm px-4 py-1.5 font-semibold; }
+  .pill .dot    { @apply w-1.5 h-1.5 rounded-full bg-current; }
+
+  /* Result pills, tinted from the severity ramp. gradeBadgeClass in
+     internal/app/web/handler/handler.go emits these class names. */
+  .pill-grade-0 { @apply border-transparent; background: color-mix(in srgb, var(--color-sev-0) 14%, white); color: #15803d; }
+  .pill-grade-1 { @apply border-transparent; background: color-mix(in srgb, var(--color-sev-1) 16%, white); color: #4d7c0f; }
+  .pill-grade-2 { @apply border-transparent; background: color-mix(in srgb, var(--color-sev-2) 18%, white); color: #a16207; }
+  .pill-grade-3 { @apply border-transparent; background: color-mix(in srgb, var(--color-sev-3) 14%, white); color: #c2410c; }
+  .pill-grade-4 { @apply border-transparent; background: color-mix(in srgb, var(--color-sev-4) 12%, white); color: #b91c1c; }
+
+  /* ---- Tables ------------------------------------------------------- */
+  .table { @apply w-full text-left text-sm border-collapse; }
+  .table thead th {
+    @apply px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.06em]
+           border-b border-base-300 bg-base-100 whitespace-nowrap;
+    color: color-mix(in srgb, var(--color-base-content) 50%, transparent);
+  }
+  .table tbody td { @apply px-4 py-3 border-b border-base-300 align-middle; }
+  .table tbody tr:last-child td { @apply border-b-0; }
+  .table tbody tr { @apply transition-colors; }
+  .table tbody tr:hover td { background: color-mix(in srgb, var(--color-primary) 4%, white); }
+  .table td.num, .table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .table-sm thead th { @apply px-3 py-2; }
+  .table-sm tbody td { @apply px-3 py-2; }
+  .table-wrap { @apply overflow-x-auto; }
+  .muted { @apply text-base-content/35; }
+
+  /* ---- Empty state -------------------------------------------------- */
+  .empty { @apply flex flex-col items-center text-center gap-1 py-12 px-6; }
+  .empty-ic {
+    @apply grid place-items-center w-12 h-12 rounded-2xl mb-2
+           bg-base-200 text-base-content/40;
+  }
+  .empty-ic svg { @apply w-6 h-6; }
+  .empty-title { @apply font-semibold; color: var(--color-ink); }
+  .empty-hint { @apply text-sm text-base-content/55 max-w-xs; }
+
+  /* ---- Pagination --------------------------------------------------- */
+  .pagination { @apply flex flex-wrap items-center gap-1; }
+  .pagination a, .pagination span, .pagination button {
+    @apply inline-flex items-center justify-center min-w-9 h-9 px-3 rounded-lg
+           text-sm font-medium border border-base-300 bg-base-100
+           text-base-content/70 transition-colors hover:bg-base-200;
+  }
+  .pagination .is-active {
+    @apply text-primary-content border-transparent hover:opacity-95;
+    background: linear-gradient(140deg, #0ea5e9, #0369a1);
+  }
+  .pagination .is-disabled { @apply opacity-40 pointer-events-none; }
+
+  /* ---- Forms -------------------------------------------------------- */
+  .field { @apply flex flex-col gap-1.5; }
+  .label-text { @apply text-[13px] font-medium text-base-content/80; }
+  .label-alt { @apply text-xs text-base-content/45 font-normal; }
+  .hint { @apply text-xs text-base-content/50; }
+
+  .input {
+    @apply h-10 w-full rounded-lg border border-base-300 bg-base-100
+           px-3 text-sm outline-none transition-colors
+           placeholder:text-base-content/40;
+  }
+  label.input { @apply inline-flex items-center gap-2; }
+  .input:focus, .input:focus-within,
+  .select:focus, .textarea:focus {
+    @apply border-primary;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 14%, transparent);
+  }
+  .input :where(input, select, textarea) {
+    @apply h-full w-full grow border-0 bg-transparent p-0 outline-none placeholder:text-base-content/40;
+  }
+  .input-sm { @apply h-8 px-2.5 text-[13px]; }
+
+  .select {
+    @apply h-10 w-full rounded-lg border border-base-300 bg-base-100
+           px-3 text-sm outline-none transition-colors;
+  }
+  .select-sm { @apply h-8 px-2.5 text-[13px]; }
+
+  .textarea {
+    @apply w-full rounded-lg border border-base-300 bg-base-100
+           p-3 text-sm outline-none transition-colors leading-relaxed
+           placeholder:text-base-content/40;
+  }
+
+  .checkbox {
+    @apply h-5 w-5 rounded-md border border-base-300 align-middle cursor-pointer;
+    accent-color: var(--color-primary);
+  }
+
+  /* switch */
+  .switch { @apply inline-flex items-center gap-2.5 cursor-pointer select-none; }
+  .switch input { @apply sr-only; }
+  .switch .track { @apply relative w-10 h-6 rounded-full bg-base-300 transition-colors; }
+  .switch .track::after {
+    content: "";
+    @apply absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+  .switch input:checked + .track { @apply bg-primary; }
+  .switch input:checked + .track::after { @apply translate-x-4; }
+  .switch input:disabled + .track { @apply opacity-50; }
+  .switch:has(input:disabled) { @apply cursor-not-allowed; }
+
+  /* ---- Bars --------------------------------------------------------- */
+  .bar { @apply h-2 w-full rounded-full overflow-hidden bg-base-200; }
+  .bar > span { @apply block h-full rounded-full; background: linear-gradient(90deg, #0ea5e9, #0369a1); }
+
+  /* ---- Join (segmented buttons) ------------------------------------- */
+  .join { @apply inline-flex; }
+  .join-item:not(:first-child) { @apply -ml-px rounded-l-none; }
+  .join-item:not(:last-child) { @apply rounded-r-none; }
+
+  /* ---- Alerts ------------------------------------------------------- */
+  .alert {
+    @apply flex items-start gap-2.5 rounded-lg border px-4 py-3 text-sm
+           border-base-300 bg-base-100;
+  }
+  .alert svg { @apply w-[1.15em] h-[1.15em] shrink-0 mt-0.5; }
+  .alert code { @apply text-xs px-1 py-0.5 rounded bg-black/5; }
+  .alert-error   { @apply border-error/25;   background: color-mix(in srgb, var(--color-error) 8%, white);   color: #b91c1c; }
+  .alert-warning { @apply border-warning/30; background: color-mix(in srgb, var(--color-warning) 10%, white); color: #92400e; }
+  .alert-success { @apply border-success/25; background: color-mix(in srgb, var(--color-success) 10%, white); color: #15803d; }
+  .alert-info    { @apply border-info/25;    background: color-mix(in srgb, var(--color-info) 8%, white);    color: #0369a1; }
+
+  /* ================================================================ */
+  /* Signature — fundus viewer                                        */
+  /* ================================================================ */
+
+  /* Fundus images are dark with a bright disc; a near-black surround keeps
+     the clinician's eye adapted rather than fighting a white page. This
+     colour is deliberately outside the theme — it is a viewing condition,
+     not a brand decision. */
+  .fundus-frame {
+    @apply flex items-center justify-center overflow-hidden rounded-xl;
+    background: #0b0f14;
+  }
+  .fundus-frame img { @apply block max-w-full h-auto; }
+
+  /* Heatmap cross-fade: both layers are stacked so the toggle compares the
+     same framing rather than swapping images and shifting layout. The
+     checkbox that drives it lives elsewhere in the card, so :has() carries
+     the state instead of a class toggled by JavaScript. */
+  .overlay-stack { @apply relative leading-none; }
+  .overlay-layer { @apply absolute inset-0 opacity-0; transition: opacity 160ms ease-in-out; }
+  .card:has(.overlay-switch:checked) .overlay-layer { @apply opacity-100; }
+
+  /* ---- Probability bars (scan detail) ------------------------------- */
+  .prob-row {
+    @apply items-center gap-3 text-sm;
+    display: grid;
+    grid-template-columns: 8.5rem 1fr 4rem;
+  }
+  .prob-track {
+    /* Both track and fill are <span>s. The track is a grid item so it is
+       blockified automatically, but the fill is not — without display:block
+       it stays inline, silently ignores width, and every bar renders at the
+       same length regardless of its probability. */
+    @apply block overflow-hidden rounded-full;
+    height: 0.6rem;
+    background: color-mix(in srgb, currentColor 12%, transparent);
+  }
+  .prob-fill {
+    @apply block h-full rounded-full;
+    /* A sub-1% probability would otherwise be invisible; keep a hairline so
+       the row still reads as a bar at zero rather than looking broken. */
+    min-width: 2px;
+    transition: width 240ms ease-out;
+  }
+
+  /* ---- Dropzone (new scan) ------------------------------------------ */
+  .dropzone {
+    @apply rounded-xl border-2 border-dashed border-base-300 p-6 text-center transition-colors;
+  }
+  .dropzone.is-dragging { @apply border-primary; background: color-mix(in srgb, var(--color-primary) 5%, white); }
+
+  /* ================================================================ */
+  /* Charts — server-rendered, no charting library                     */
+  /* ================================================================ */
+
+  /* Severity swatches, shared by every chart and legend. */
+  .sev-0 { background: var(--color-sev-0); }
+  .sev-1 { background: var(--color-sev-1); }
+  .sev-2 { background: var(--color-sev-2); }
+  .sev-3 { background: var(--color-sev-3); }
+  .sev-4 { background: var(--color-sev-4); }
+
+  .swatch { @apply inline-block w-3 h-3 rounded-[4px] shrink-0; }
+
+  /* Grade distribution: one stacked strip, read alongside the legend. */
+  .dist-strip { @apply flex w-full h-3 rounded-full overflow-hidden bg-base-200; }
+  .dist-strip > span { @apply block h-full; }
+  .dist-legend { @apply flex flex-col gap-1.5 mt-4; }
+  .dist-row { @apply flex items-center gap-3 text-sm; }
+  .dist-row .name { @apply flex items-center gap-2 flex-1 min-w-0 truncate; }
+  .dist-row .count { @apply font-medium w-12 text-right; font-variant-numeric: tabular-nums; }
+  .dist-row .share { @apply text-base-content/50 w-14 text-right text-xs; font-variant-numeric: tabular-nums; }
+
+  /* Mean confidence per grade. */
+  .conf-row { @apply items-center gap-3 text-sm; display: grid; grid-template-columns: 8.5rem 1fr 3.5rem; }
+  .conf-track { @apply block h-2 w-full rounded-full overflow-hidden bg-base-200; }
+  .conf-fill { @apply block h-full rounded-full; min-width: 2px; }
+
+  /* Daily trend. Every day in the window gets a column, empty ones included,
+     so the x axis reads as time rather than as "the days that happened to have
+     scans". A window too long for one column per day folds days into wider
+     bins instead of scrolling sideways, which stays printable and needs no JS.
+
+     The referable share is the bottom segment of a stack, not an overlay. As
+     an absolutely positioned bar over the total it covered the total entirely
+     whenever every scan in a column was referable: the column read as solid
+     red and the legend's total colour appeared nowhere on the chart. */
+  .trend-wrap { @apply grid gap-x-2; grid-template-columns: 2.25rem 1fr; }
+  .trend-y {
+    @apply flex flex-col justify-between items-end h-48 text-xs text-base-content/45;
+    font-variant-numeric: tabular-nums;
+  }
+  /* Centre the end labels on their gridlines rather than inside the box. */
+  .trend-y > span:first-child { margin-top: -0.5em; }
+  .trend-y > span:last-child { margin-bottom: -0.5em; }
+
+  .trend-plot { @apply relative h-48; }
+  .trend-grid { @apply absolute inset-0 flex flex-col justify-between pointer-events-none; }
+  .trend-grid > span { @apply block border-t border-base-300; }
+  /* Positioned, so the bars paint over the absolutely positioned gridlines:
+     positioned elements win over non-positioned ones whatever the DOM order. */
+  .trend { @apply relative flex items-end gap-px h-full w-full; }
+  .trend-col { @apply flex-1 min-w-[2px] h-full flex items-end; }
+  /* DOM order is [rest, referable]; column + justify-end puts referable at the
+     bottom. flex-col-reverse would swap the segments. */
+  .trend-stack { @apply flex flex-col justify-end w-full h-full; }
+  .trend-rest, .trend-sw-rest { background: color-mix(in srgb, var(--color-primary) 45%, white); }
+  .trend-rest { @apply block w-full rounded-t-sm; }
+  .trend-referable { @apply block w-full; background: var(--color-sev-4); }
+  /* An all-referable column has no segment above it to carry the rounding. */
+  .trend-col.is-full .trend-referable { @apply rounded-t-sm; }
+  .trend-col:hover .trend-rest { background: var(--color-primary); }
+
+  /* Mirrors .trend's flex geometry exactly, so each tick centres on its own
+     column with no arithmetic. */
+  .trend-axis { @apply flex gap-px mt-2 h-4 text-xs text-base-content/50; }
+  .trend-axis .cell { @apply relative flex-1 min-w-[2px]; }
+  .trend-axis .tick { @apply absolute top-0 left-1/2 -translate-x-1/2 whitespace-nowrap; }
+  .trend-axis .cell:first-child .tick { @apply left-0 translate-x-0; }
+  .trend-axis .cell:last-child .tick { @apply left-auto right-0 translate-x-0; }
+  .chart-legend { @apply flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-base-content/55; }
+  .chart-legend .item { @apply inline-flex items-center gap-1.5; }
+}
+
+/* ================================================================== */
+/* Print — a scan detail page should print as a clean one-page record. */
+/* ================================================================== */
+@media print {
+  .no-print { display: none !important; }
+  .print-block { break-inside: avoid; }
+  .drawer-side, .topbar { display: none !important; }
+  .main { padding: 0 !important; }
+  .page-footer { padding: 1rem 0 0 !important; }
+  .card { box-shadow: none !important; }
+}

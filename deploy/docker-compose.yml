@@ -34,6 +34,10 @@ services:
         condition: service_healthy
     environment:
       ENV: production
+      # Without this the container's clock is UTC, so every date the UI renders
+      # - and every day boundary the filters and the trend chart snap to - is
+      # seven hours off for the people reading them. tzdata is in the image.
+      TZ: ${TZ:-Asia/Jakarta}
       DB_HOST: db
       DB_PORT: "3306"
       DB_NAME: ${DB_NAME:-drml}

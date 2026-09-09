@@ -1,47 +1,47 @@
 {{define "content"}}
-<div class="min-h-screen flex items-center justify-center p-4 bg-base-200">
-  <div class="card w-full max-w-md bg-base-100 shadow-xl">
-    <div class="card-body">
-      <div class="flex items-center gap-3 mb-2">
-        <div class="bg-primary text-primary-content rounded-lg p-2">
-          <i data-lucide="eye" class="w-6 h-6"></i>
-        </div>
-        <div>
-          <h1 class="text-xl font-bold leading-tight">DRML</h1>
-          <p class="text-sm text-base-content/60">Penapisan Retinopati Diabetik</p>
-        </div>
-      </div>
-
-      {{if .Error}}
-      <div role="alert" class="alert alert-error text-sm">
-        <i data-lucide="alert-circle" class="w-4 h-4"></i>
-        <span>{{.Error}}</span>
-      </div>
-      {{end}}
-
-      <form method="post" action="/login" class="mt-2">
-        <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
-
-        <label class="form-control w-full">
-          <div class="label"><span class="label-text">Nama pengguna</span></div>
-          <input type="text" name="username" value="{{.Username}}" required autofocus
-                 autocomplete="username" class="input input-bordered w-full">
-        </label>
-
-        <label class="form-control w-full mt-3">
-          <div class="label"><span class="label-text">Kata sandi</span></div>
-          <input type="password" name="password" required autocomplete="current-password"
-                 class="input input-bordered w-full">
-        </label>
-
-        <button type="submit" class="btn btn-primary w-full mt-6">Masuk</button>
-      </form>
-
-      <p class="text-xs text-base-content/50 mt-4 text-center">
-        Alat bantu penapisan — bukan alat diagnosis.
-      </p>
-    </div>
+<div class="flex items-center gap-3 mb-6 lg:hidden">
+  <div class="brand-mark"><i data-lucide="eye"></i></div>
+  <div>
+    <div class="font-heading font-bold leading-tight" style="color:var(--color-ink)">DRML</div>
+    <div class="text-xs text-base-content/55">Penapisan Retinopati Diabetik</div>
   </div>
 </div>
-<script>if (window.lucide) window.lucide.createIcons();</script>
+
+<h1 class="text-2xl font-bold">Masuk</h1>
+<p class="page-subtitle mb-6">Gunakan akun yang diberikan administrator.</p>
+
+{{if .Error}}
+<div role="alert" class="alert alert-error mb-4">
+  <i data-lucide="alert-circle"></i>
+  <span>{{.Error}}</span>
+</div>
+{{end}}
+
+<form method="post" action="/login" class="flex flex-col gap-4">
+  <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+
+  <div class="field">
+    <span class="label-text">Nama pengguna</span>
+    <label class="input">
+      <i data-lucide="user" class="w-4 h-4 text-base-content/40"></i>
+      <input type="text" name="username" value="{{.Username}}" required autofocus
+             autocomplete="username" placeholder="nama pengguna">
+    </label>
+  </div>
+
+  <div class="field">
+    <span class="label-text">Kata sandi</span>
+    <label class="input">
+      <i data-lucide="lock" class="w-4 h-4 text-base-content/40"></i>
+      <input type="password" name="password" required autocomplete="current-password"
+             placeholder="kata sandi">
+    </label>
+  </div>
+
+  <button type="submit" class="btn btn-primary w-full mt-2">
+    <i data-lucide="log-in"></i> Masuk
+  </button>
+</form>
+
+<p class="hint mt-6 text-center">Alat bantu penapisan — bukan alat diagnosis.</p>
 {{end}}

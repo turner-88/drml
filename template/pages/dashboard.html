@@ -1,81 +1,102 @@
+{{define "actions"}}
+<a href="/scans/new" class="btn btn-primary btn-sm">
+  <i data-lucide="scan-eye"></i> Pemeriksaan Baru
+</a>
+{{end}}
+
 {{define "content"}}
-<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
-  <div class="stat bg-base-100 rounded-box shadow-sm">
-    <div class="stat-figure text-primary"><i data-lucide="scan-eye" class="w-7 h-7"></i></div>
-    <div class="stat-title">Total pemeriksaan</div>
-    <div class="stat-value text-primary">{{.Summary.TotalScans}}</div>
-    <div class="stat-desc">Sejak {{.From}}</div>
+<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+  <div class="stat-card">
+    <div class="stat-ic" style="background:color-mix(in srgb,var(--color-primary) 12%,white);color:var(--color-primary)">
+      <i data-lucide="scan-eye"></i>
+    </div>
+    <div class="min-w-0">
+      <div class="stat-num">{{.Summary.TotalScans}}</div>
+      <div class="stat-lbl">Total pemeriksaan</div>
+      <div class="stat-sub">Sejak {{.From}}</div>
+    </div>
   </div>
 
-  <div class="stat bg-base-100 rounded-box shadow-sm">
-    <div class="stat-figure text-warning"><i data-lucide="alert-triangle" class="w-7 h-7"></i></div>
-    <div class="stat-title">Perlu rujukan</div>
-    <div class="stat-value text-warning">{{pct .ReferableRate}}</div>
-    <div class="stat-desc">{{.ReferableCount}} kasus derajat &ge; 2</div>
+  <div class="stat-card">
+    <div class="stat-ic" style="background:color-mix(in srgb,var(--color-warning) 14%,white);color:var(--color-warning)">
+      <i data-lucide="alert-triangle"></i>
+    </div>
+    <div class="min-w-0">
+      <div class="stat-num">{{pct .ReferableRate}}</div>
+      <div class="stat-lbl">Perlu rujukan</div>
+      <div class="stat-sub">{{.ReferableCount}} kasus derajat &ge; 2</div>
+    </div>
   </div>
 
-  <div class="stat bg-base-100 rounded-box shadow-sm">
-    <div class="stat-figure text-info"><i data-lucide="gauge" class="w-7 h-7"></i></div>
-    <div class="stat-title">Rata-rata konfidens</div>
-    <div class="stat-value text-info">{{pct .MeanConfidence}}</div>
-    <div class="stat-desc">{{.MeanInferenceMs}} ms per gambar</div>
+  <div class="stat-card">
+    <div class="stat-ic" style="background:color-mix(in srgb,var(--color-secondary) 14%,white);color:var(--color-secondary)">
+      <i data-lucide="gauge"></i>
+    </div>
+    <div class="min-w-0">
+      <div class="stat-num">{{pct .MeanConfidence}}</div>
+      <div class="stat-lbl">Rata-rata konfidens</div>
+      <div class="stat-sub">{{.MeanInferenceMs}} ms per gambar</div>
+    </div>
   </div>
 
-  <div class="stat bg-base-100 rounded-box shadow-sm">
-    <div class="stat-figure text-error"><i data-lucide="help-circle" class="w-7 h-7"></i></div>
-    <div class="stat-title">Konfidens rendah</div>
-    <div class="stat-value text-error">{{.LowConfidenceCount}}</div>
-    <div class="stat-desc">Disarankan ditinjau manual</div>
+  <div class="stat-card">
+    <div class="stat-ic" style="background:color-mix(in srgb,var(--color-error) 12%,white);color:var(--color-error)">
+      <i data-lucide="help-circle"></i>
+    </div>
+    <div class="min-w-0">
+      <div class="stat-num">{{.LowConfidenceCount}}</div>
+      <div class="stat-lbl">Konfidens rendah</div>
+      <div class="stat-sub">Disarankan ditinjau manual</div>
+    </div>
   </div>
 </div>
 
-<div class="card bg-base-100 shadow-sm">
-  <div class="card-body">
-    <div class="flex items-center justify-between">
-      <h2 class="card-title text-base">Pemeriksaan terbaru</h2>
-      <a href="/scans" class="btn btn-ghost btn-sm">Lihat semua</a>
-    </div>
+<div class="card mt-4">
+  <div class="card-header">
+    <h2 class="card-title">Pemeriksaan terbaru</h2>
+    <a href="/scans" class="btn btn-ghost btn-sm">Lihat semua <i data-lucide="chevron-right"></i></a>
+  </div>
 
-    {{if .Recent}}
-    <div class="overflow-x-auto">
-      <table class="table table-sm">
-        <thead>
-          <tr>
-            <th>Waktu</th>
-            <th>Pasien</th>
-            <th>Hasil</th>
-            <th>Konfidens</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {{range .Recent}}
-          <tr class="hover">
-            <td class="whitespace-nowrap">{{if .CreatedAt.Valid}}{{unixDate .CreatedAt.Int32}}{{end}}</td>
-            <td>{{if .PatientRef.Valid}}{{.PatientRef.String}}{{else}}<span class="text-base-content/40">—</span>{{end}}</td>
-            <td>
-              {{if .PredictedGrade.Valid}}
-                <span class="badge {{gradeBadge .PredictedGrade.Int16}} badge-sm">{{gradeLabel .PredictedGrade.Int16}}</span>
-              {{else}}
-                <span class="badge badge-ghost badge-sm">Gagal</span>
-              {{end}}
-            </td>
-            <td>{{if .Confidence.Valid}}{{pct .Confidence.Float64}}{{end}}</td>
-            <td class="text-right">
-              <a href="/scans/{{.ID}}" class="btn btn-ghost btn-xs">Detail</a>
-            </td>
-          </tr>
-          {{end}}
-        </tbody>
-      </table>
-    </div>
-    {{else}}
-    <div class="text-center py-10">
-      <i data-lucide="inbox" class="w-10 h-10 mx-auto text-base-content/30"></i>
-      <p class="mt-3 text-base-content/60">Belum ada pemeriksaan.</p>
-      <a href="/scans/new" class="btn btn-primary btn-sm mt-4">Mulai pemeriksaan pertama</a>
-    </div>
-    {{end}}
+  <div class="table-wrap">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Waktu</th>
+          <th>Pasien</th>
+          <th>Hasil</th>
+          <th class="num">Konfidens</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Recent}}
+        <tr>
+          <td class="whitespace-nowrap">{{if .CreatedAt.Valid}}{{unixDate .CreatedAt.Int32}}{{end}}</td>
+          <td>{{if .PatientRef.Valid}}{{.PatientRef.String}}{{else}}<span class="muted">—</span>{{end}}</td>
+          <td>
+            {{if .PredictedGrade.Valid}}
+              <span class="pill {{gradeBadge .PredictedGrade.Int16}}">{{gradeLabel .PredictedGrade.Int16}}</span>
+            {{else}}
+              <span class="pill pill-muted">Gagal</span>
+            {{end}}
+          </td>
+          <td class="num">{{if .Confidence.Valid}}{{pct .Confidence.Float64}}{{else}}<span class="muted">—</span>{{end}}</td>
+          <td class="text-right">
+            <a href="/scans/{{.ID}}" class="btn btn-xs btn-ghost">Detail <i data-lucide="chevron-right"></i></a>
+          </td>
+        </tr>
+        {{else}}
+        <tr><td colspan="5">
+          <div class="empty">
+            <div class="empty-ic"><i data-lucide="inbox"></i></div>
+            <div class="empty-title">Belum ada pemeriksaan</div>
+            <p class="empty-hint">Unggah citra kamera fundus untuk memulai penapisan pertama.</p>
+            <a href="/scans/new" class="btn btn-sm btn-primary mt-2">Mulai pemeriksaan pertama</a>
+          </div>
+        </td></tr>
+        {{end}}
+      </tbody>
+    </table>
   </div>
 </div>
 {{end}}

@@ -51,19 +51,27 @@ func (h *Handler) UserList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.render(w, r, "users", map[string]any{
+	data := map[string]any{
 		"Title":      "Manajemen Pengguna",
 		"Users":      rows,
 		"Pagination": pagination.New(page, total, size, "/admin/users?", true),
 		"RoleFilter": r.URL.Query().Get("role"),
-	})
+	}
+	switch r.URL.Query().Get("error") {
+	case "self":
+		data["Error"] = "Tidak dapat menangguhkan akun sendiri."
+	case "last_admin":
+		data["Error"] = "Tidak dapat menangguhkan administrator terakhir."
+	}
+
+	h.render(w, r, "users", data)
 }
 
 // NewUserPage renders the create-account form.
 func (h *Handler) NewUserPage(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "user_form", map[string]any{
 		"Title": "Tambah Pengguna",
-		"IsNew": true,
+		"Role":  int(model.UserRoleClinician),
 	})
 }
 
@@ -75,8 +83,10 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	email := strings.TrimSpace(r.FormValue("email"))
 	role, _ := strconv.Atoi(r.FormValue("role"))
 
+	// Role is echoed back so a failed submission re-renders with the operator's
+	// choice still selected rather than silently resetting to Klinisi.
 	form := map[string]any{
-		"Title": "Tambah Pengguna", "IsNew": true,
+		"Title":    "Tambah Pengguna",
 		"Username": username, "Name": name, "Email": email, "Role": role,
 	}
 
@@ -148,7 +158,7 @@ func (h *Handler) SuspendUser(w http.ResponseWriter, r *http.Request) {
 	me := actor(r)
 	if int32(id) == me.ID {
 		// Suspending yourself would lock the last admin out of the system.
-		http.Error(w, "Tidak dapat menangguhkan akun sendiri", http.StatusBadRequest)
+		http.Redirect(w, r, "/admin/users?error=self", http.StatusSeeOther)
 		return
 	}
 
@@ -167,7 +177,7 @@ func (h *Handler) SuspendUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if admins <= 1 {
-			http.Error(w, "Tidak dapat menangguhkan administrator terakhir", http.StatusBadRequest)
+			http.Redirect(w, r, "/admin/users?error=last_admin", http.StatusSeeOther)
 			return
 		}
 	}
@@ -189,10 +199,5 @@ func (h *Handler) SuspendUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.Header.Get("HX-Request") != "" {
-		w.Header().Set("HX-Redirect", "/admin/users")
-		w.WriteHeader(http.StatusOK)
-		return
-	}
 	http.Redirect(w, r, "/admin/users", http.StatusSeeOther)
 }

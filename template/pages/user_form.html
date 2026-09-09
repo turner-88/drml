@@ -1,54 +1,58 @@
+{{define "actions"}}
+<a href="/admin/users" class="btn btn-sm btn-outline">
+  <i data-lucide="arrow-left"></i> Daftar pengguna
+</a>
+{{end}}
+
 {{define "content"}}
-<div class="max-w-xl mx-auto">
+<div class="max-w-xl">
   {{if .Error}}
   <div role="alert" class="alert alert-error mb-4">
-    <i data-lucide="alert-circle" class="w-5 h-5"></i><span>{{.Error}}</span>
+    <i data-lucide="alert-circle"></i>
+    <span>{{.Error}}</span>
   </div>
   {{end}}
 
   <form method="post" action="/admin/users">
     <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
-    <div class="card bg-base-100 shadow-sm">
-      <div class="card-body">
-        <h2 class="card-title text-base">Akun baru</h2>
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">Akun baru</h2></div>
 
-        <label class="form-control">
-          <div class="label"><span class="label-text">Nama pengguna</span></div>
+      <div class="card-body gap-4">
+        <div class="field">
+          <span class="label-text">Nama pengguna</span>
           <input type="text" name="username" value="{{.Username}}" required minlength="3" maxlength="50"
-                 class="input input-bordered" autocomplete="off">
-        </label>
-
-        <label class="form-control mt-3">
-          <div class="label"><span class="label-text">Nama lengkap</span></div>
-          <input type="text" name="name" value="{{.Name}}" maxlength="100" class="input input-bordered">
-        </label>
-
-        <label class="form-control mt-3">
-          <div class="label"><span class="label-text">Email</span></div>
-          <input type="email" name="email" value="{{.Email}}" maxlength="100" class="input input-bordered">
-        </label>
-
-        <label class="form-control mt-3">
-          <div class="label"><span class="label-text">Peran</span></div>
-          <select name="role" class="select select-bordered">
-            <option value="1">Klinisi — hanya melihat pemeriksaannya sendiri</option>
-            <option value="2">Administrator — melihat semua & mengelola pengguna</option>
-          </select>
-        </label>
-
-        <label class="form-control mt-3">
-          <div class="label">
-            <span class="label-text">Kata sandi awal</span>
-            <span class="label-text-alt text-base-content/50">wajib diganti saat masuk pertama</span>
-          </div>
-          <input type="password" name="password" required minlength="8"
-                 class="input input-bordered" autocomplete="new-password">
-        </label>
-
-        <div class="card-actions justify-end mt-5">
-          <a href="/admin/users" class="btn btn-ghost">Batal</a>
-          <button type="submit" class="btn btn-primary">Simpan</button>
+                 class="input" autocomplete="off">
         </div>
+
+        <div class="field">
+          <span class="label-text">Nama lengkap</span>
+          <input type="text" name="name" value="{{.Name}}" maxlength="100" class="input">
+        </div>
+
+        <div class="field">
+          <span class="label-text">Email</span>
+          <input type="email" name="email" value="{{.Email}}" maxlength="100" class="input">
+        </div>
+
+        <div class="field">
+          <span class="label-text">Peran</span>
+          <select name="role" class="select">
+            <option value="1" {{if eq .Role 1}}selected{{end}}>Klinisi — hanya melihat pemeriksaannya sendiri</option>
+            <option value="2" {{if eq .Role 2}}selected{{end}}>Administrator — melihat semua &amp; mengelola pengguna</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <span class="label-text">Kata sandi awal <span class="label-alt">wajib diganti saat masuk pertama</span></span>
+          <input type="password" name="password" required minlength="8"
+                 class="input" autocomplete="new-password">
+        </div>
+      </div>
+
+      <div class="card-foot">
+        <a href="/admin/users" class="btn btn-ghost">Batal</a>
+        <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> Simpan</button>
       </div>
     </div>
   </form>

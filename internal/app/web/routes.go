@@ -51,13 +51,14 @@ func Routes(cfg *config.Config, h *handler.Handler) chi.Router {
 
 			r.Get("/", h.Dashboard)
 			r.Get("/analytics", h.AnalyticsPage)
-			r.Get("/api/analytics", h.AnalyticsData)
 
 			r.Get("/scans", h.ScanList)
 			r.Get("/scans/new", h.NewScanPage)
 			r.Post("/scans", h.CreateScan)
 			r.Get("/scans/{id}", h.ScanDetail)
-			r.Delete("/scans/{id}", h.DeleteScan)
+			// A plain form POST rather than DELETE: the UI ships no JavaScript
+			// framework, and forms cannot issue any verb but GET or POST.
+			r.Post("/scans/{id}/delete", h.DeleteScan)
 
 			// Admin only
 			r.Group(func(r chi.Router) {
@@ -67,6 +68,9 @@ func Routes(cfg *config.Config, h *handler.Handler) chi.Router {
 				r.Get("/admin/users/new", h.NewUserPage)
 				r.Post("/admin/users", h.CreateUser)
 				r.Post("/admin/users/{id}/suspend", h.SuspendUser)
+
+				r.Get("/admin/settings", h.SettingsPage)
+				r.Post("/admin/settings", h.UpdateSettings)
 			})
 		})
 	})

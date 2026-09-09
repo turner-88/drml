@@ -206,19 +206,20 @@ func (q *Queries) LowConfidenceScans(ctx context.Context, arg LowConfidenceScans
 
 const scansPerDay = `-- name: ScansPerDay :many
 SELECT
-  FROM_UNIXTIME(created_at, '%Y-%m-%d') AS day,
+  (created_at + ?) DIV 86400 AS day_index,
   COUNT(*) AS total,
-  SUM(predicted_grade >= 2) AS referable
+  COALESCE(SUM(predicted_grade >= 2), 0) AS referable
 FROM ` + "`" + `scan` + "`" + `
 WHERE status = 'done'
   AND (? = 1 OR created_by = ?)
   AND (? IS NULL OR created_at >= ?)
   AND (? IS NULL OR created_at <= ?)
-GROUP BY day
-ORDER BY day
+GROUP BY day_index
+ORDER BY day_index
 `
 
 type ScansPerDayParams struct {
+	TzOffset  sql.NullInt32 `json:"tz_offset"`
 	AllScans  interface{}   `json:"all_scans"`
 	CreatedBy sql.NullInt32 `json:"created_by"`
 	FromTs    sql.NullInt32 `json:"from_ts"`
@@ -226,13 +227,23 @@ type ScansPerDayParams struct {
 }
 
 type ScansPerDayRow struct {
-	Day       string      `json:"day"`
+	DayIndex  int32       `json:"day_index"`
 	Total     int64       `json:"total"`
 	Referable interface{} `json:"referable"`
 }
 
+// Buckets by local calendar day without consulting the MySQL session time
+// zone. FROM_UNIXTIME() would: it resolves @@session.time_zone, which defaults
+// to SYSTEM (the DB host's OS zone) and which the DSN never pins, so its day
+// keys could disagree with the days Go zero-fills the trend chart with -- and a
+// key that disagrees drops that day's scans silently. Integer division of a
+// shifted epoch has no such dependency: the caller passes its own UTC offset.
+//
+// The shift stays out of the WHERE clause on purpose, so created_at is still
+// bare there and idx_scan_created_at remains usable.
 func (q *Queries) ScansPerDay(ctx context.Context, arg ScansPerDayParams) ([]ScansPerDayRow, error) {
 	rows, err := q.db.QueryContext(ctx, scansPerDay,
+		arg.TzOffset,
 		arg.AllScans,
 		arg.CreatedBy,
 		arg.FromTs,
@@ -247,7 +258,7 @@ func (q *Queries) ScansPerDay(ctx context.Context, arg ScansPerDayParams) ([]Sca
 	var items []ScansPerDayRow
 	for rows.Next() {
 		var i ScansPerDayRow
-		if err := rows.Scan(&i.Day, &i.Total, &i.Referable); err != nil {
+		if err := rows.Scan(&i.DayIndex, &i.Total, &i.Referable); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

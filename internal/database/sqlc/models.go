@@ -9,6 +9,14 @@ import (
 	"encoding/json"
 )
 
+type AppSetting struct {
+	SettingKey string `json:"setting_key"`
+	// scalar; parsed by the typed accessor in store
+	SettingValue string        `json:"setting_value"`
+	UpdatedAt    sql.NullInt32 `json:"updated_at"`
+	UpdatedBy    sql.NullInt32 `json:"updated_by"`
+}
+
 type Scan struct {
 	ID int32 `json:"id"`
 	// optional clinic-side patient identifier

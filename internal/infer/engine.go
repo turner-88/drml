@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"image"
 	"io"
+	"io/fs"
+	"log"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -65,6 +67,10 @@ type Config struct {
 	ModelPath      string
 	LabelsPath     string
 	PreprocessPath string
+	// GatePath is model/gate.json. A missing file disables the non-fundus
+	// gate rather than failing startup, so a deployment upgraded ahead of its
+	// calibration run still boots.
+	GatePath       string
 	ORTLibPath     string
 	IntraOpThreads int
 	InterOpThreads int
@@ -77,6 +83,14 @@ type Engine struct {
 	session *ort.DynamicAdvancedSession
 	pre     *PreprocessConfig
 	labels  *LabelSet
+
+	// gate holds the calibrated thresholds and never changes: it is measured
+	// evidence from model/gate.py, not a preference. Whether the gate runs is
+	// a separate, operator-owned decision, so it lives in gateEnabled — an
+	// atomic because every upload reads it and an administrator can flip it
+	// from another goroutine at any moment.
+	gate        *GateConfig
+	gateEnabled atomic.Bool
 
 	modelSHA256 string
 
@@ -133,6 +147,18 @@ func New(cfg Config) (*Engine, error) {
 		return nil, fmt.Errorf("labels.json has %d labels, expected %d", len(labels.Labels), NumGrades)
 	}
 
+	gate, err := LoadGateConfig(cfg.GatePath)
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		log.Printf("infer: %s missing, non-fundus gate DISABLED "+
+			"(run model/gate.py to calibrate it)", cfg.GatePath)
+		gate = nil
+	case err != nil:
+		return nil, err
+	case !gate.Enabled:
+		log.Println("infer: non-fundus gate disabled by config")
+	}
+
 	sum, err := fileSHA256(cfg.ModelPath)
 	if err != nil {
 		return nil, err
@@ -173,14 +199,19 @@ func New(cfg Config) (*Engine, error) {
 		depth = 4
 	}
 
-	return &Engine{
+	e := &Engine{
 		session:       session,
 		pre:           pre,
 		labels:        &labels,
+		gate:          gate,
 		modelSHA256:   sum,
 		sem:           make(chan struct{}, 1),
 		maxQueueDepth: depth,
-	}, nil
+	}
+	// gate.json's own flag is only the boot default; a stored admin preference
+	// overrides it via SetGateEnabled once the database is reachable.
+	e.gateEnabled.Store(gate != nil && gate.Enabled)
+	return e, nil
 }
 
 // Close releases the ONNX session.
@@ -204,6 +235,45 @@ func (e *Engine) OrderingVerified() bool { return e.labels.OrderingVerified }
 
 // Labels exposes the display names.
 func (e *Engine) Labels() []Label { return e.labels.Labels }
+
+// GateAvailable reports whether calibrated thresholds were loaded. Without
+// them there is nothing to enable, so the UI must not offer the choice.
+func (e *Engine) GateAvailable() bool { return e.gate != nil }
+
+// GateEnabled reports whether the gate is currently running.
+func (e *Engine) GateEnabled() bool { return e.gateEnabled.Load() }
+
+// GateCalibration returns what the thresholds were measured against, or nil.
+func (e *Engine) GateCalibration() *Calibration {
+	if e.gate == nil {
+		return nil
+	}
+	return e.gate.Calibration
+}
+
+// SetGateEnabled turns the gate on or off for every subsequent upload, with no
+// restart. It reports whether the request was honoured: enabling is refused
+// when no calibration is loaded, because there would be no thresholds to apply
+// and the caller must be able to tell that apart from success.
+func (e *Engine) SetGateEnabled(on bool) bool {
+	if on && !e.GateAvailable() {
+		return false
+	}
+	e.gateEnabled.Store(on)
+	return true
+}
+
+// CheckImage runs the gate's image heuristics.
+//
+// It is exposed separately from Predict so callers can reject an upload before
+// it reaches the serialized forward pass: a junk image should never occupy the
+// single inference slot, and on a hard rejection nothing needs to be stored.
+func (e *Engine) CheckImage(img image.Image) GateReport {
+	if !e.gateEnabled.Load() {
+		return GateReport{Passed: true}
+	}
+	return e.gate.CheckImage(img)
+}
 
 // Predict runs one image through the model.
 //
@@ -261,6 +331,17 @@ func (e *Engine) Predict(ctx context.Context, img image.Image) (*Result, error) 
 	logits := logitsTensor.GetData()
 	if len(logits) != NumGrades {
 		return nil, fmt.Errorf("model produced %d logits, expected %d", len(logits), NumGrades)
+	}
+
+	// Second-tier gate. It lives inside Predict rather than beside the caller's
+	// CheckImage call so that it cannot be skipped: any future path to the
+	// model passes through here. Reads the same flag as CheckImage, so an
+	// administrator switching the gate off disables both tiers at once.
+	if e.gateEnabled.Load() {
+		if rep := e.gate.CheckLogits(logits); !rep.Passed {
+			return nil, fmt.Errorf("%w (%s energy=%.3f)",
+				ErrNotFundus, rep.Reason, rep.Metrics["energy"])
+		}
 	}
 
 	probs := Softmax(logits)

@@ -1,0 +1,64 @@
+{{define "guest.html"}}<!DOCTYPE html>
+<html lang="id" data-theme="{{.Theme}}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.Title}} — DRML</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230284c7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script src="/static/cdn/lucide-0.469.0.js"></script>
+</head>
+<body class="min-h-screen grid lg:grid-cols-2 bg-base-100">
+
+  <div class="relative hidden lg:flex flex-col justify-between p-12 text-white overflow-hidden"
+       style="background:linear-gradient(150deg,#075985,#0369a1 55%,#0284c7)">
+    {{/* A faint retinal-vessel motif: concentric rings echoing a fundus image,
+         kept low-contrast so it reads as texture rather than decoration. */}}
+    <div class="absolute inset-0 opacity-[0.13] pointer-events-none"
+         style="background-image:radial-gradient(circle at 1px 1px,#fff 1.5px,transparent 0);background-size:26px 26px"></div>
+    <div class="absolute -right-24 -bottom-24 w-96 h-96 rounded-full pointer-events-none"
+         style="border:1px solid rgba(255,255,255,.18);box-shadow:0 0 0 60px rgba(255,255,255,.05) inset"></div>
+
+    <div class="relative flex items-center gap-3">
+      <div class="grid place-items-center w-10 h-10 rounded-xl bg-white/15"><i data-lucide="eye"></i></div>
+      <div>
+        <div class="font-heading font-bold text-lg leading-tight">DRML</div>
+        <div class="text-xs text-white/70">Penapisan Retinopati Diabetik</div>
+      </div>
+    </div>
+
+    <div class="relative">
+      <h2 class="font-heading text-3xl font-bold leading-snug mb-4 text-white">
+        Penapisan Retinopati<br>Diabetik Terbantu Model
+      </h2>
+      <p class="text-white/75 text-sm max-w-sm leading-relaxed">
+        Unggah citra kamera fundus untuk memperoleh perkiraan derajat retinopati
+        beserta tingkat konfidensnya, lengkap dengan peta atensi model.
+      </p>
+      <div class="flex flex-wrap gap-2 mt-6">
+        <span class="pill bg-white/10 border-white/20 text-white/90">Tidak ada DR</span>
+        <span class="pill bg-white/10 border-white/20 text-white/90">Ringan</span>
+        <span class="pill bg-white/10 border-white/20 text-white/90">Sedang</span>
+        <span class="pill bg-white/10 border-white/20 text-white/90">Berat</span>
+        <span class="pill bg-white/10 border-white/20 text-white/90">Proliferatif</span>
+      </div>
+    </div>
+
+    <p class="relative text-white/45 text-xs">
+      Alat bantu penapisan — bukan alat diagnosis. &copy; {{.Year}} DRML
+    </p>
+  </div>
+
+  <div class="flex items-center justify-center p-8">
+    <div class="w-full max-w-sm">
+      {{template "content" .}}
+    </div>
+  </div>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>
+{{end}}

@@ -6,136 +6,139 @@
   <title>{{.Title}} — DRML</title>
   {{/* Inline SVG favicon: avoids a 404 on every page load without shipping a
        binary asset or an extra request. */}}
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230284c7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap">
-  <link rel="stylesheet" href="/static/cdn/daisyui-5.5.17.css">
-  <link rel="stylesheet" href="/static/cdn/daisyui-5.5.16-themes.css">
   <link rel="stylesheet" href="/static/css/app.css">
-  <script src="/static/cdn/tailwind-4.1.18.js"></script>
-  {{/* Tailwind v4's Play CDN takes its theme from this block. Registering the
-       families here (rather than as :root vars in app.css) is what lets the
-       injected preflight derive --default-font-family from --font-sans, and it
-       generates the font-sans/font-heading utilities for templates. */}}
-  <style type="text/tailwindcss">
-    @theme {
-      --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
-      --font-heading: "Sora", ui-sans-serif, system-ui, -apple-system, sans-serif;
-    }
-  </style>
-  <script defer src="/static/cdn/alpine-3.14.3.js"></script>
-  <script src="/static/cdn/htmx-2.0.4.js"></script>
   <script src="/static/cdn/lucide-0.469.0.js"></script>
 </head>
 <body class="min-h-screen bg-base-200">
 
-{{if .AuthUser}}
 <div class="drawer lg:drawer-open">
-  <input id="nav-drawer" type="checkbox" class="drawer-toggle" />
+  <input id="nav-drawer" type="checkbox" class="drawer-toggle">
 
-  <div class="drawer-content flex flex-col">
-    <!-- Top bar -->
-    <header class="navbar bg-base-100 border-b border-base-300 sticky top-0 z-30 no-print">
-      <div class="flex-none lg:hidden">
-        <label for="nav-drawer" class="btn btn-square btn-ghost" aria-label="Buka menu">
-          <i data-lucide="menu" class="w-5 h-5"></i>
-        </label>
-      </div>
-      <div class="flex-1">
-        <span class="text-lg font-semibold px-2">{{.Title}}</span>
-      </div>
-      <div class="flex-none gap-2">
-        <a href="/scans/new" class="btn btn-primary btn-sm gap-2">
-          <i data-lucide="scan-eye" class="w-4 h-4"></i>
-          <span class="hidden sm:inline">Pemeriksaan Baru</span>
-        </a>
-        <div class="dropdown dropdown-end">
-          <div tabindex="0" role="button" class="btn btn-ghost btn-sm gap-2">
-            <div class="avatar placeholder">
-              <div class="bg-neutral text-neutral-content w-7 rounded-full">
-                <span class="text-xs">{{if .AuthUser}}{{slice .AuthUser.Username 0 1}}{{end}}</span>
-              </div>
-            </div>
-            <span class="hidden sm:inline">{{.AuthUser.Username}}</span>
-          </div>
-          <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box z-40 w-52 p-2 shadow border border-base-300">
-            <li class="menu-title text-xs">{{.RoleLabel}}</li>
-            <li><a href="/logout"><i data-lucide="log-out" class="w-4 h-4"></i>Keluar</a></li>
-          </ul>
-        </div>
-      </div>
+  <div class="drawer-content">
+    <!-- Mobile top bar. On desktop the sidebar is always visible and the page
+         title lives in .page-header, so there is nothing left for a navbar. -->
+    <header class="topbar lg:hidden no-print">
+      <label for="nav-drawer" class="btn btn-square btn-ghost btn-sm" aria-label="Buka menu">
+        <i data-lucide="menu"></i>
+      </label>
+      <div class="brand-mark w-8 h-8"><i data-lucide="eye"></i></div>
+      <span class="font-heading font-bold">DRML</span>
     </header>
 
-    <main class="p-4 lg:p-6 flex-1">
+    <main class="main">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">{{.Title}}</h1>
+          {{if .Subtitle}}<p class="page-subtitle">{{.Subtitle}}</p>{{end}}
+        </div>
+        <div class="page-actions no-print">{{block "actions" .}}{{end}}</div>
+      </div>
+
       {{if not .OrderingVerified}}
       <div role="alert" class="alert alert-warning mb-4 no-print">
-        <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+        <i data-lucide="alert-triangle"></i>
         <div>
           <div class="font-semibold">Urutan kelas model belum diverifikasi</div>
-          <div class="text-sm">Label tingkat keparahan yang ditampilkan masih berupa asumsi.
-            Jalankan <code class="text-xs">model/eval.py</code> sebelum digunakan secara klinis.</div>
+          <div>Label tingkat keparahan yang ditampilkan masih berupa asumsi.
+            Jalankan <code>model/eval.py</code> sebelum digunakan secara klinis.</div>
+        </div>
+      </div>
+      {{end}}
+
+      {{if not .GateEnabled}}
+      <div role="alert" class="alert alert-warning mb-4 no-print">
+        <i data-lucide="shield-off"></i>
+        <div>
+          <div class="font-semibold">Filter foto non-fundus nonaktif</div>
+          <div>Setiap gambar yang dapat dibaca akan dianalisis dan diberi nilai,
+            termasuk foto biasa dan tangkapan layar.
+            {{if not .GateAvailable}}Ambang batas belum dikalibrasi — jalankan
+            <code>model/gate.py</code>.{{end}}</div>
         </div>
       </div>
       {{end}}
 
       {{template "content" .}}
-
-      <footer class="mt-10 pt-4 border-t border-base-300 text-xs text-base-content/60 print-block">
-        <p class="font-medium">Alat bantu penapisan — bukan alat diagnosis.</p>
-        <p>Setiap hasil harus dikonfirmasi oleh dokter spesialis mata. Model:
-          <code>{{.ModelID}}</code>.</p>
-        <p class="mt-1">&copy; {{.Year}} DRML</p>
-      </footer>
     </main>
+
+    <!-- Sibling of .main, not a child: .main is flex-1 inside the flex column
+         .drawer-content, so short pages push this down to the viewport bottom
+         while long pages simply let it scroll away. -->
+    <footer class="page-footer print-block">
+      <p class="font-medium">Alat bantu penapisan — bukan alat diagnosis.</p>
+      <p>Setiap hasil harus dikonfirmasi oleh dokter spesialis mata. Model:
+        <code>{{.ModelID}}</code>.</p>
+      <p class="mt-1">&copy; {{.Year}} DRML</p>
+    </footer>
   </div>
 
-  <!-- Sidebar -->
   <div class="drawer-side z-40 no-print">
     <label for="nav-drawer" class="drawer-overlay" aria-label="Tutup menu"></label>
-    <aside class="bg-base-100 w-64 min-h-full border-r border-base-300">
-      <div class="p-4 flex items-center gap-2 border-b border-base-300">
-        <div class="bg-primary text-primary-content rounded-lg p-2">
-          <i data-lucide="eye" class="w-5 h-5"></i>
-        </div>
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"><i data-lucide="eye"></i></div>
         <div>
-          <div class="font-bold leading-tight">DRML</div>
-          <div class="text-xs text-base-content/60">Penapisan Retinopati</div>
+          <div class="font-heading font-bold leading-tight" style="color:var(--color-ink)">DRML</div>
+          <div class="text-[11px] text-base-content/55 leading-tight">Penapisan Retinopati</div>
         </div>
       </div>
-      <ul class="menu p-3 gap-1">
-        <li><a href="/" class="{{if eq .Path "/"}}menu-active{{end}}">
-          <i data-lucide="layout-dashboard" class="w-4 h-4"></i>Dasbor</a></li>
-        <li><a href="/scans/new" class="{{if eq .Path "/scans/new"}}menu-active{{end}}">
-          <i data-lucide="upload" class="w-4 h-4"></i>Pemeriksaan Baru</a></li>
-        <li><a href="/scans" class="{{if eq .Path "/scans"}}menu-active{{end}}">
-          <i data-lucide="history" class="w-4 h-4"></i>Riwayat</a></li>
-        <li><a href="/analytics" class="{{if eq .Path "/analytics"}}menu-active{{end}}">
-          <i data-lucide="bar-chart-3" class="w-4 h-4"></i>Analitik</a></li>
+
+      <nav class="nav-scroll">
+        {{$p := .Path}}
+        <div class="nav-section">
+          <div class="nav-label">Ringkasan</div>
+          <ul class="menu">
+            <li><a href="/" class="{{if eq $p "/"}}menu-active{{end}}">
+              <i data-lucide="layout-dashboard"></i> Dasbor</a></li>
+          </ul>
+        </div>
+
+        <div class="nav-section">
+          <div class="nav-label">Pemeriksaan</div>
+          <ul class="menu">
+            <li><a href="/scans/new" class="{{if eq $p "/scans/new"}}menu-active{{end}}">
+              <i data-lucide="upload"></i> Pemeriksaan Baru</a></li>
+            <li><a href="/scans" class="{{if eq $p "/scans"}}menu-active{{end}}">
+              <i data-lucide="history"></i> Riwayat</a></li>
+            <li><a href="/analytics" class="{{if eq $p "/analytics"}}menu-active{{end}}">
+              <i data-lucide="bar-chart-3"></i> Analitik</a></li>
+          </ul>
+        </div>
+
         {{if .IsAdmin}}
-        <li class="menu-title mt-3">Administrasi</li>
-        <li><a href="/admin/users" class="{{if eq .Path "/admin/users"}}menu-active{{end}}">
-          <i data-lucide="users" class="w-4 h-4"></i>Pengguna</a></li>
+        <div class="nav-section">
+          <div class="nav-label">Administrasi</div>
+          <ul class="menu">
+            <li><a href="/admin/users" class="{{if eq $p "/admin/users"}}menu-active{{end}}">
+              <i data-lucide="users"></i> Pengguna</a></li>
+            <li><a href="/admin/settings" class="{{if eq $p "/admin/settings"}}menu-active{{end}}">
+              <i data-lucide="settings"></i> Pengaturan</a></li>
+          </ul>
+        </div>
         {{end}}
-      </ul>
+      </nav>
+
+      <div class="sidebar-foot">
+        {{with .AuthUser}}
+        <div class="avatar">{{initials .Username}}</div>
+        <div class="min-w-0 flex-1">
+          <div class="text-sm font-medium truncate" style="color:var(--color-ink)">{{.Username}}</div>
+          <div class="text-[11px] text-base-content/50">{{$.RoleLabel}}</div>
+        </div>
+        {{end}}
+        <a href="/logout" class="btn btn-ghost btn-square btn-sm" title="Keluar" aria-label="Keluar">
+          <i data-lucide="log-out"></i>
+        </a>
+      </div>
     </aside>
   </div>
 </div>
-{{else}}
-  {{template "content" .}}
-{{end}}
 
-<script>
-  // Re-render icons after HTMX swaps content in.
-  function drawIcons() { if (window.lucide) window.lucide.createIcons(); }
-  drawIcons();
-  document.body.addEventListener('htmx:afterSwap', drawIcons);
-
-  // HTMX must carry the CSRF token on non-POST verbs, which have no form body.
-  document.body.addEventListener('htmx:configRequest', function (evt) {
-    evt.detail.headers['X-CSRF-Token'] = '{{.CSRFToken}}';
-  });
-</script>
+<script>lucide.createIcons();</script>
 </body>
 </html>
 {{end}}
