@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	assets "github.com/remorac/drml"
 	"github.com/remorac/drml/internal/app/scan"
 	"github.com/remorac/drml/internal/database/store"
 	"github.com/remorac/drml/internal/infer"
@@ -36,6 +37,8 @@ type Handler struct {
 	storage storage.Storage
 
 	tmplFS fs.FS
+	// assetV is the cache-busting fingerprint appended to the CSS/JS URLs.
+	assetV string
 	// Pages render inside the authenticated shell; guest pages render inside
 	// the split-screen sign-in layout, which has no sidebar or nav.
 	pages map[string]*template.Template
@@ -55,8 +58,9 @@ func New(
 	h := &Handler{
 		cfg: cfg, store: st, scans: scans, engine: engine,
 		storage: blobs, tmplFS: tmplFS,
-		pages: map[string]*template.Template{},
-		guest: map[string]*template.Template{},
+		assetV: assets.StaticVersion,
+		pages:  map[string]*template.Template{},
+		guest:  map[string]*template.Template{},
 	}
 
 	parse := func(layout, page string) (*template.Template, error) {
@@ -157,6 +161,7 @@ func (h *Handler) withCommon(r *http.Request, data map[string]any) {
 	data["Year"] = time.Now().Year()
 	data["CSRFToken"] = mw.GetCSRFToken(r)
 	data["Path"] = r.URL.Path
+	data["AssetV"] = h.assetV
 
 	if u := mw.GetUserFromContext(r.Context()); u != nil {
 		data["AuthUser"] = u

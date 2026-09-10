@@ -96,7 +96,9 @@ func main() {
 	r.Use(chimw.Compress(5))
 	r.Use(chimw.RedirectSlashes)
 
-	// Embedded assets: long cache, they are versioned by filename.
+	// Embedded assets: long cache. static/cdn is versioned by filename; css and
+	// js keep stable names and are busted by the ?v= fingerprint the templates
+	// append (see StaticVersion), so a deploy is picked up immediately.
 	staticSub, err := fs.Sub(assets.StaticFS, "static")
 	if err != nil {
 		log.Fatalf("FATAL: static assets: %v", err)
