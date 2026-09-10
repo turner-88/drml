@@ -144,7 +144,7 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.render(w, r, "dashboard", map[string]any{
-		"Title":              "Dasbor",
+		"Title":              "Dashboard",
 		"Summary":            summary,
 		"ReferableCount":     int64(referableCount),
 		"MeanConfidence":     toFloat(summary.MeanConfidence),

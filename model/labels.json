@@ -1,7 +1,7 @@
 {
   "model_id": "Kontawat/vit-diabetic-retinopathy-classification",
   "model_file": "vit_dr_int8.onnx",
-  "model_sha256": "48f761ef58bb4bcc801811e3498022a401b45e180b2f4c57281fd3eaef7b9fbe",
+  "model_sha256": "0667cd727f6e29f268d893a18d2ea6de251c1829a08cd23c63bf69d827bae573",
   "ordering_verified": true,
   "ordering_note": "The checkpoint's id2label is a placeholder ({'0':'0',...}). These names assume the standard APTOS ordering. Run eval.py against labelled data and set ordering_verified=true before relying on these labels clinically.",
   "labels": [

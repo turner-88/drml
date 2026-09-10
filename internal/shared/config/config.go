@@ -66,15 +66,15 @@ type ModelConfig struct {
 	// by model/gate.py. Absent, the gate is disabled and every decodable image
 	// is graded — see MODEL_GATE_ENABLED.
 	GatePath string
-	// HeatmapEnabled controls the attention-rollout overlay.
-	//
-	// Rollout is forward-only and correct as implemented, but on the default
-	// checkpoint it is only weakly content-driven: two different fundus images
-	// can yield maps correlating at ~0.82, and diseased images show a strong
-	// top-edge bias rather than highlighting lesions. It is kept as an
-	// exploratory aid with an explicit caveat in the UI; set
-	// MODEL_HEATMAP_ENABLED=false to switch it off entirely.
+	// HeatmapEnabled controls the saliency overlay on the scan detail page.
+	// Set MODEL_HEATMAP_ENABLED=false to switch it off entirely.
 	HeatmapEnabled bool
+	// ExplainMethod selects how the overlay is computed: "auto" (default)
+	// uses class-specific gradient-weighted attention relevance when the
+	// exported graph carries the gradients and falls back to attention rollout
+	// otherwise; "rollout" forces the fallback; "grad-relevance" refuses to
+	// start without gradients. See infer.Config.Explain.
+	ExplainMethod string
 }
 
 // ORTConfig configures the ONNX Runtime session.
@@ -154,6 +154,7 @@ func Load() *Config {
 			PreprocessPath: getEnv("MODEL_PREPROCESS_PATH", "model/preprocess.json"),
 			GatePath:       getEnv("MODEL_GATE_PATH", "model/gate.json"),
 			HeatmapEnabled: getEnvBool("MODEL_HEATMAP_ENABLED", true),
+			ExplainMethod:  getEnv("MODEL_EXPLAIN_METHOD", "auto"),
 		},
 		ORT: ORTConfig{
 			LibPath:          getEnv("ORT_LIB_PATH", defaultORTLibPath()),

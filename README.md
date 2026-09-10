@@ -20,20 +20,27 @@ fundus image ──► Go: decode → non-fundus gate ──► rejected, nothin
                    │                    (52 µs, before the inference slot)
                    ├─► resize 224² → normalize
                    │
-                   ├─► ONNX Runtime (ViT-B/16, int8)  ──► logits ──► softmax ──► grade 0–4
-                   └─► attentions [12,1,12,197,197]   ──► attention rollout ──► 14×14 heatmap
+                   ├─► ONNX Runtime (ViT-B/16, int8, forward + backward baked in)
+                   │      ├─► logits ──► softmax ──► grade 0–4
+                   │      └─► attentions + attn_grads [12,1,12,197,197]
+                   │             ──► gradient-weighted relevance ──► 14×14 heatmap
                    │
                    └─► MySQL row + image/heatmap blobs ──► history ──► analytics
 ```
 
 **Why not Python?** The target is a 2 vCPU / 2 GB VPS. `import torch` alone is
 ~1 GB RSS before the model loads, which does not fit beside MySQL. ONNX Runtime
-with an int8-quantized ViT measures **328 MB** under sustained load.
+with an int8-quantized ViT measures **~470 MB** under sustained load, backward
+pass included.
 
-**Why attention rollout and not Grad-CAM?** Grad-CAM needs a backward pass,
-which ONNX Runtime cannot do. Rollout is forward-only. See
-[Known limitations](#known-limitations) — it is a weak localizer on this
-checkpoint.
+**How does the heatmap get gradients without PyTorch?** ONNX Runtime cannot
+differentiate, so `export.py` differentiates the model in PyTorch
+(`torch.func.grad`) and exports the resulting forward+backward computation as
+one graph. ORT then produces d(predicted logit)/d(attention) in the same `Run`
+as the logits, and Go turns it into the class-specific relevance map of
+Chefer et al. (ICCV 2021). Plain attention rollout, which needs no gradients,
+remains as the fallback for a graph exported with `--forward-only`; it is a
+much weaker localizer — see [Known limitations](#known-limitations).
 
 ---
 
@@ -42,16 +49,22 @@ checkpoint.
 Verified on this machine (Apple Silicon; a 2 vCPU x86 VPS will be several times
 slower per inference, still within budget):
 
-| Metric | Measured |
-|---|---|
-| RSS, idle with model loaded | 163 MB |
-| RSS, after 40 sequential inferences | 328 MB (plateaus, no creep) |
-| Inference time | 131 ms avg, 157 ms max |
-| End-to-end upload → stored result | ~275 ms |
-| Concurrency | serialized to 1; excess sheds with `503` |
+| Metric | Forward-only graph | Forward + backward graph (default) |
+|---|---|---|
+| int8 artifact on disk | 87 MB | 171 MB (backward weights are stored pre-transposed so they quantize) |
+| RSS, model loaded | +152 MB | +271 MB |
+| RSS, after 40 sequential predictions | +278 MB (plateaus, no creep) | +458 MB (plateaus, no creep) |
+| Per prediction, incl. preprocessing, saliency and heatmap render | 103 ms | 189 ms |
+| Concurrency | serialized to 1; excess sheds with `503` | same |
 
-Projected VPS budget: app ~330 MB + MySQL (tuned) ~450 MB + OS ~250 MB
-≈ **1.0 GB of 2 GB**.
+RSS deltas are over an idle Go process, measured in-process with
+`DRML_MEASURE_RSS=1 go test ./internal/infer/ -run TestMemoryFootprint -v`.
+ORT's memory-pattern planner is disabled (`SetMemPattern(false)`): on the
+backward graph it pre-reserved ~75 MB for no latency gain.
+
+Projected VPS budget: app ~510 MB + MySQL (tuned) ~450 MB + OS ~250 MB
+≈ **1.2 GB of 2 GB**. If that is too tight, `export.py --forward-only` gives
+the left column back at the cost of the class-specific heatmap.
 
 ---
 
@@ -196,9 +209,10 @@ brew install onnxruntime sqlc mysql   # or mariadb
 ```bash
 cd model
 python3 -m venv .venv
-./.venv/bin/pip install torch torchvision transformers onnx onnxruntime pillow numpy certifi
+./.venv/bin/pip install torch torchvision transformers onnx onnxscript onnxruntime pillow numpy certifi
 ./.venv/bin/python export.py     # writes vit_dr_int8.onnx, labels.json, preprocess.json
 ./.venv/bin/python eval.py       # verifies ordering + int8 vs fp32
+./.venv/bin/python explain.py --out /tmp/overlays   # optional: eyeball rollout vs gradient maps
 ```
 
 ### 3. Database
@@ -255,7 +269,8 @@ there is no client-side data fetch and no chart JSON endpoint.
 | `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | localhost:3306, `drml` | required in production |
 | `JWT_SECRET` | dev placeholder | **must** be changed in production |
 | `MODEL_PATH` | `model/vit_dr_int8.onnx` | set to `model/vit_dr.onnx` for fp32 |
-| `MODEL_HEATMAP_ENABLED` | `true` | see [Known limitations](#known-limitations) |
+| `MODEL_HEATMAP_ENABLED` | `true` | saliency overlay on the scan page |
+| `MODEL_EXPLAIN_METHOD` | `auto` | `auto` picks gradient relevance when the graph has `attn_grads`, else rollout; `rollout` forces the fallback; `grad-relevance` refuses to start without gradients. Forcing rollout does not skip the backward pass — ORT runs the whole graph regardless of which outputs are fetched |
 | `MODEL_GATE_PATH` | `model/gate.json` | non-fundus gate thresholds; absent ⇒ gate off. On/off is overridden at runtime by `/admin/settings` |
 | `ORT_LIB_PATH` | auto-detected | onnxruntime shared library |
 | `ORT_INTRA_OP_THREADS` | `2` | matches 2 vCPU |
@@ -575,21 +590,30 @@ and the binary embeds whatever the stylesheet was at build time.
 
 ## Known limitations
 
-**The attention heatmap is a weak localizer.** Measured on this checkpoint:
+**The heatmap is gradient-weighted attention relevance, not a validated
+lesion detector.** It answers "which patches pushed the predicted grade's
+logit up?", which is the right question, but nothing here has been scored
+against lesion annotations — the repository holds no such ground truth. What
+*was* measured on the six `model/testdata/fundus` samples:
 
-- The maps *are* input-dependent (random noise yields a different map), but two
-  different fundus images correlated at **0.82**.
-- Diseased images show a strong top-edge bias; on a grade-2 image with obvious
-  central exudates, the peak landed on the top-right edge rather than the
-  lesions.
-- This survives every standard variant (mean/max head fusion, discard ratio
-  0.9), so it is a property of the model, not the implementation — which is
-  verified against a Python reference.
-- Only 12% of saliency falls on dark border patches, so this is *not* a
-  missing-fundus-crop bug.
+- **It is class-specific and image-specific.** Maps from different images
+  correlate at 0.08 on average (max 0.64). The previous method, attention
+  rollout, correlated at 0.82 between two different patients and peaked in the
+  top row of the image on five of the six samples; the gradient map's peak
+  moves with the image, and on the grade-2 sample with central exudates it
+  lands on discrete spots inside the retina rather than on the frame corners.
+- **Rollout is still there as the fallback**, for a graph exported with
+  `--forward-only`. It is class-agnostic, and on this checkpoint only weakly
+  tied to the image content; the rendering mitigations below exist because of
+  it and still apply to both methods.
+- **int8 quantization moves the map a little.** Relevance from the served int8
+  graph agrees with the fp32 graph at cosine ≥ 0.96 over the samples, with the
+  same peak cell on five of six. The Go implementation itself matches the
+  Python reference to 1e-5 on the fp32 graph (`TestRelevanceParity`).
+- **Resolution is 14×14 patches.** A 16-pixel-square cell at 224 px cannot
+  outline a microaneurysm; it can say which region carried the evidence.
 
-This cannot be fixed by rendering, so the rendering is instead built not to
-overstate it:
+Rendering is built not to overstate whichever map it gets:
 
 - **The overlay is confined to the illuminated disc.** `infer.FundusMask` drops
   grid cells on the black surround before normalization, and `RenderHeatmap`
@@ -598,31 +622,32 @@ overstate it:
   past the disc edge and the ramp crosses the paint threshold in the black.
   Saliency there is not weak evidence about the retina, it is none.
 - **Normalization clips to p2/p98 of the ROI** rather than its min and max, so
-  one runaway border patch no longer compresses the rest of the map into the
-  bottom of the colour ramp.
-- **`Saliency.Concentration`** (p98/mean of the raw rollout over the ROI;
-  uniform attention scores 1.0) measures how much structure a map actually
-  carries, and `HeatmapOptions.MinConcentration`/`FullConcentration` ramp the
-  overlay's alpha by it, down to rendering no heatmap at all. Without this,
-  normalization guarantees a saturated peak on every scan however diffuse the
-  attention was.
+  one runaway patch no longer compresses the rest of the map into the bottom of
+  the colour ramp.
+- **`Saliency.Concentration`** (p98/mean of the raw map over the ROI; uniform
+  scores 1.0) measures how much structure a map actually carries, and
+  `HeatmapOptions.MinConcentration`/`FullConcentration` ramp the overlay's alpha
+  by it, down to rendering no heatmap at all. A map with no positive gradient
+  anywhere has concentration 0 and is not drawn.
 
-  **The ramp ships disabled (both 0).** The only corpus available here is 12
-  images, over which concentration runs p0 1.50, p50 1.67, p100 2.09 — and it
-  does not track pathology on that sample (a grade-0 scan scored the highest
-  and another the lowest). Two thresholds fitted to that would be overfitting,
-  not calibration. Re-measure on a real corpus and set them from the printed
-  distribution:
+  **The ramp ships disabled (both 0).** Over the six samples the gradient
+  method's concentration runs p0 2.57, p50 5.16, p100 9.90 — far more peaked
+  than rollout's 1.50–2.09, so any thresholds measured under rollout are void.
+  Re-measure on a real corpus and set them from the printed distribution:
 
   ```bash
   DRML_SWEEP_DIR=/abs/path/to/scans DRML_SWEEP_OUT=/tmp/overlays \
     go test ./internal/infer/ -run TestSaliencyConcentrationSweep -v
   ```
 
-The UI says plainly that the map is not a lesion marker and must not be used to
-locate a lesion. Set `MODEL_HEATMAP_ENABLED=false` to remove it entirely. A
-faithful alternative is occlusion sensitivity, but at ~196 forward passes per
-image it is far too slow for synchronous inference on 2 vCPU.
+  The sweep also prints the rank correlation between the rollout and gradient
+  maps per image and writes both overlays, which is the quickest way to see
+  what the change buys on your own data.
+
+The UI says the map is a coarse aid and not a validated lesion marker. Set
+`MODEL_HEATMAP_ENABLED=false` to remove it entirely. Scans graded before the
+switch keep their stored rollout overlays: only the rendered JPEG is persisted,
+never the grid.
 
 **EXIF orientation is applied at decode time.** `image.Decode` ignores the tag
 while browsers honour it, which used to grade a phone-shot fundus sideways and
@@ -658,6 +683,16 @@ Notable tests:
   same argmax.
 - `TestPredictSerializes` — proves the capacity-1 semaphore admits one forward
   pass at a time.
+- `TestRelevanceParity` — Go's `GradRelevance` on the graph's own tensors vs
+  the Python reference in `golden.json`, on a noise fixture and a real fundus:
+  1e-5 on the fp32 graph (`DRML_TEST_MODEL=vit_dr.onnx`), correlation ≥ 0.96
+  on the served int8 graph.
+- `TestGradRelevanceIsClassSpecificNotAttentionDriven` — a heavily attended
+  patch with zero gradient scores nothing while a lightly attended one with a
+  positive gradient carries the map; rollout does the opposite on the same
+  tensors. This is the property the method was adopted for.
+- `TestExplainMethodSelection` — the operator override to rollout works on a
+  gradient graph, and `auto` picks gradients when they are there.
 - `TestAttentionRolloutUniformIsFlat` — a flat attention map must render as *no
   signal*; without a relative epsilon, min-max normalization amplifies float
   noise into a vivid fictitious heatmap.
@@ -686,13 +721,13 @@ cmd/{server,seed}          entrypoints
 internal/
   app/scan                 screening workflow (inference → storage → DB)
   app/web                  routes + handlers + templates
-  infer                    ONNX session, preprocessing, rollout, overlay
+  infer                    ONNX session, preprocessing, relevance + rollout, overlay
   storage                  blob interface: local | Cloudflare R2
   database                 schema, sqlc queries, store
   shared                   config, middleware, auth, pagination
 template/                  layouts (base, guest) + pages + partials
 static/css/app.src.css     design tokens + components (Tailwind source)
 static/css/app.css         compiled output, committed
-model/                     export.py, eval.py, ONNX artifacts
+model/                     export.py, eval.py, explain.py, ONNX artifacts
 deploy/                    Dockerfile, compose, my.cnf, systemd unit
 ```

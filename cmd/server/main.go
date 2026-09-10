@@ -54,12 +54,14 @@ func main() {
 		IntraOpThreads: cfg.ORT.IntraOpNumThread,
 		InterOpThreads: cfg.ORT.InterOpNumThread,
 		MaxQueueDepth:  cfg.ORT.MaxQueueDepth,
+		Explain:        cfg.Model.ExplainMethod,
 	})
 	if err != nil {
 		log.Fatalf("FATAL: load model: %v", err)
 	}
 	defer engine.Close()
-	log.Printf("Model loaded: %s (sha256 %s…)", engine.ModelID(), engine.ModelSHA256()[:12])
+	log.Printf("Model loaded: %s (sha256 %s…, explanation %s)",
+		engine.ModelID(), engine.ModelSHA256()[:12], explainName(engine.ExplainMethod()))
 	if !engine.OrderingVerified() {
 		log.Println("WARNING: model class ordering is UNVERIFIED — run model/eval.py " +
 			"before relying on displayed severity labels")
@@ -204,4 +206,12 @@ func applyGateSetting(st *store.Store, engine *infer.Engine) {
 	} else {
 		log.Println("Non-fundus gate: DISABLED — every decodable image will be graded")
 	}
+}
+
+// explainName spells out the saliency method for the startup log.
+func explainName(m infer.ExplainMethod) string {
+	if m == "" {
+		return "none (graph has no attentions)"
+	}
+	return string(m)
 }

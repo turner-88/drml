@@ -55,8 +55,9 @@ type Result struct {
 	// Probs holds all NumGrades softmax outputs, not just the winner, so the
 	// UI can show the full distribution and analytics can flag near-ties.
 	Probs []float32
-	// Saliency is the attention-rollout explanation (a 14x14 grid for
-	// ViT-B/16), masked to the fundus disc and normalized to [0,1]. Nil when
+	// Saliency is the spatial explanation (a 14x14 grid for ViT-B/16), masked
+	// to the fundus disc and normalized to [0,1]. Saliency.Method says whether
+	// it is the class-specific gradient map or the rollout fallback. Nil when
 	// the model was exported without attentions. Rendering is overlay.go's job.
 	Saliency    *Saliency
 	InferenceMS int
@@ -75,6 +76,15 @@ type Config struct {
 	IntraOpThreads int
 	InterOpThreads int
 	MaxQueueDepth  int
+	// Explain selects the saliency algorithm: "auto" (default) uses
+	// grad-relevance when the graph exposes attn_grads and rollout otherwise;
+	// "rollout" forces the fallback even on a gradient-capable graph, and
+	// "grad-relevance" refuses to start without one.
+	//
+	// Forcing rollout does not make inference cheaper: ONNX Runtime executes
+	// the whole graph regardless of which outputs are fetched. To shed the
+	// backward pass, serve a graph exported with `export.py --forward-only`.
+	Explain string
 }
 
 // Engine runs the exported ViT. It is safe for concurrent use, but deliberately
@@ -83,6 +93,14 @@ type Engine struct {
 	session *ort.DynamicAdvancedSession
 	pre     *PreprocessConfig
 	labels  *LabelSet
+
+	// outputNames is what the session fetches, in order; attnIdx and gradsIdx
+	// locate the attention tensors within it, or are -1 when the graph does not
+	// provide them. Set once in New from the graph's own declared outputs.
+	outputNames []string
+	attnIdx     int
+	gradsIdx    int
+	explain     ExplainMethod
 
 	// gate holds the calibrated thresholds and never changes: it is measured
 	// evidence from model/gate.py, not a preference. Whether the gate runs is
@@ -183,11 +201,23 @@ func New(cfg Config) (*Engine, error) {
 			return nil, fmt.Errorf("set inter-op threads: %w", err)
 		}
 	}
+	// Memory-pattern planning pre-reserves the peak activation footprint of the
+	// whole graph, backward pass included. Measured on the served int8 graph
+	// it costs ~75 MB of steady-state RSS and buys nothing in latency, which
+	// is the wrong trade on a 2 GB box.
+	if err := opts.SetMemPattern(false); err != nil {
+		return nil, fmt.Errorf("disable memory pattern: %w", err)
+	}
+
+	outputs, attnIdx, gradsIdx, explain, err := planOutputs(cfg.ModelPath, opts, cfg.Explain)
+	if err != nil {
+		return nil, err
+	}
 
 	session, err := ort.NewDynamicAdvancedSession(
 		cfg.ModelPath,
 		[]string{"pixel_values"},
-		[]string{"logits", "attentions"},
+		outputs,
 		opts,
 	)
 	if err != nil {
@@ -203,6 +233,10 @@ func New(cfg Config) (*Engine, error) {
 		session:       session,
 		pre:           pre,
 		labels:        &labels,
+		outputNames:   outputs,
+		attnIdx:       attnIdx,
+		gradsIdx:      gradsIdx,
+		explain:       explain,
 		gate:          gate,
 		modelSHA256:   sum,
 		sem:           make(chan struct{}, 1),
@@ -211,8 +245,81 @@ func New(cfg Config) (*Engine, error) {
 	// gate.json's own flag is only the boot default; a stored admin preference
 	// overrides it via SetGateEnabled once the database is reachable.
 	e.gateEnabled.Store(gate != nil && gate.Enabled)
+	log.Printf("infer: explanation method %q (graph outputs %v)", explainLabel(explain), outputs)
 	return e, nil
 }
+
+// Graph output names export.py assigns. logits is mandatory; the other two
+// decide which explanation the engine can compute.
+const (
+	outLogits     = "logits"
+	outAttentions = "attentions"
+	outAttnGrads  = "attn_grads"
+)
+
+// planOutputs inspects the graph's declared inputs and outputs and decides
+// what the session will fetch. It reads the model file through a throwaway
+// session, which costs a second load at startup but means a graph exported
+// without gradients — or an operator forcing rollout — is handled before the
+// first request rather than discovered by it.
+func planOutputs(modelPath string, opts *ort.SessionOptions, want string) (
+	outputs []string, attnIdx, gradsIdx int, method ExplainMethod, err error,
+) {
+	inputs, declared, err := ort.GetInputOutputInfoWithOptions(modelPath, opts)
+	if err != nil {
+		return nil, 0, 0, "", fmt.Errorf("inspect model %q: %w", modelPath, err)
+	}
+	if len(inputs) != 1 || inputs[0].Name != "pixel_values" {
+		names := make([]string, len(inputs))
+		for i, in := range inputs {
+			names[i] = in.Name
+		}
+		return nil, 0, 0, "", fmt.Errorf("model %q declares inputs %v, want exactly [pixel_values]", modelPath, names)
+	}
+
+	has := map[string]bool{}
+	for _, out := range declared {
+		has[out.Name] = true
+	}
+	if !has[outLogits] {
+		return nil, 0, 0, "", fmt.Errorf("model %q has no %q output", modelPath, outLogits)
+	}
+
+	switch want {
+	case "", "auto", string(ExplainRollout), string(ExplainGradRelevance):
+	default:
+		return nil, 0, 0, "", fmt.Errorf("unknown explanation method %q (want auto, rollout or grad-relevance)", want)
+	}
+	if want == string(ExplainGradRelevance) && !has[outAttnGrads] {
+		return nil, 0, 0, "", fmt.Errorf("explanation method grad-relevance requested but model %q has no %q output (re-run model/export.py)", modelPath, outAttnGrads)
+	}
+
+	outputs = []string{outLogits}
+	attnIdx, gradsIdx = -1, -1
+	if has[outAttentions] {
+		attnIdx = len(outputs)
+		outputs = append(outputs, outAttentions)
+		method = ExplainRollout
+	}
+	if has[outAttnGrads] && has[outAttentions] && want != string(ExplainRollout) {
+		gradsIdx = len(outputs)
+		outputs = append(outputs, outAttnGrads)
+		method = ExplainGradRelevance
+	}
+	return outputs, attnIdx, gradsIdx, method, nil
+}
+
+// explainLabel names a method for logs, with "" spelled out.
+func explainLabel(m ExplainMethod) string {
+	if m == "" {
+		return "none"
+	}
+	return string(m)
+}
+
+// ExplainMethod reports which saliency algorithm Predict produces, or "" when
+// the loaded graph exposes no attentions and there is no heatmap at all.
+func (e *Engine) ExplainMethod() ExplainMethod { return e.explain }
 
 // Close releases the ONNX session.
 func (e *Engine) Close() {
@@ -328,7 +435,7 @@ func (e *Engine) Predict(ctx context.Context, img image.Image) (*Result, error) 
 	defer inputTensor.Destroy()
 
 	// nil outputs are allocated by the runtime and returned in place.
-	outputs := []ort.Value{nil, nil}
+	outputs := make([]ort.Value, len(e.outputNames))
 	if err := e.session.Run([]ort.Value{inputTensor}, outputs); err != nil {
 		return nil, fmt.Errorf("run inference: %w", err)
 	}
@@ -371,19 +478,12 @@ func (e *Engine) Predict(ctx context.Context, img image.Image) (*Result, error) 
 
 	// Attentions are optional: a model exported without them still classifies,
 	// it just cannot explain itself.
-	if attnTensor, ok := outputs[1].(*ort.Tensor[float32]); ok {
-		shape := attnTensor.GetShape()
-		side := patchSide(shape)
-		// The mask keeps saliency off the black surround, where the model can
-		// only be attending to padding. Built here rather than in the renderer
-		// because the normalization statistics have to exclude those cells too.
-		mask := FundusMask(img, side, e.roiLumaFloor())
-		sal, err := Rollout(attnTensor.GetData(), shape, mask)
-		if err != nil {
+	if e.attnIdx >= 0 {
+		if sal, err := e.explainOutputs(img, outputs); err != nil {
 			// Not fatal — the grade still stands — but never silent: a
-			// regression in the rollout must not look like a model exported
-			// without attentions.
-			log.Printf("infer: attention rollout failed, no heatmap: %v", err)
+			// regression here must not look like a model exported without
+			// attentions.
+			log.Printf("infer: saliency failed, no heatmap: %v", err)
 		} else {
 			res.Saliency = sal
 		}
@@ -391,6 +491,36 @@ func (e *Engine) Predict(ctx context.Context, img image.Image) (*Result, error) 
 
 	res.InferenceMS = int(time.Since(start).Milliseconds())
 	return res, nil
+}
+
+// explainOutputs turns the fetched attention tensors into a Saliency using the
+// best method the graph supports.
+func (e *Engine) explainOutputs(img image.Image, outputs []ort.Value) (*Saliency, error) {
+	attnTensor, ok := outputs[e.attnIdx].(*ort.Tensor[float32])
+	if !ok {
+		return nil, fmt.Errorf("unexpected attentions type %T", outputs[e.attnIdx])
+	}
+	shape := attnTensor.GetShape()
+	side := patchSide(shape)
+	// The mask keeps saliency off the black surround, where the model can only
+	// be attending to padding. Built here rather than in the renderer because
+	// the normalization statistics have to exclude those cells too.
+	mask := FundusMask(img, side, e.roiLumaFloor())
+
+	if e.gradsIdx >= 0 {
+		gradsTensor, ok := outputs[e.gradsIdx].(*ort.Tensor[float32])
+		if !ok {
+			return nil, fmt.Errorf("unexpected attn_grads type %T", outputs[e.gradsIdx])
+		}
+		if gs := gradsTensor.GetShape(); !gs.Equals(shape) {
+			// A graph that lies about its gradients still has attentions; the
+			// weaker map is better than none, but say so every time.
+			log.Printf("infer: attn_grads shape %v does not match attentions %v, falling back to rollout", gs, shape)
+		} else {
+			return GradRelevance(attnTensor.GetData(), gradsTensor.GetData(), shape, mask)
+		}
+	}
+	return Rollout(attnTensor.GetData(), shape, mask)
 }
 
 // Softmax converts logits to probabilities, shifted by the max for stability.

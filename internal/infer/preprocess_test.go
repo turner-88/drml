@@ -20,6 +20,21 @@ type goldenFixture struct {
 	PixelValues      []float32        `json:"pixel_values"`
 	Logits           []float32        `json:"logits"`
 	AttentionsShape  []int            `json:"attentions_shape"`
+	AttnGradsShape   []int            `json:"attn_grads_shape"`
+	// Relevance is the Python reference GradRelevance output for the fixture,
+	// raw (before masking and normalization). Absent from fixtures generated
+	// by an older export.py.
+	Relevance []float32 `json:"relevance"`
+	// FundusFixture is the same reference on a real fundus image, with its
+	// tensor pre-computed so the comparison isolates the saliency math from
+	// preprocessing. Present only when model/testdata/fundus/00.png existed at
+	// export time.
+	FundusFixture *struct {
+		Image       string    `json:"image"`
+		PixelValues []float32 `json:"pixel_values"`
+		Logits      []float32 `json:"logits"`
+		Relevance   []float32 `json:"relevance"`
+	} `json:"fundus_fixture"`
 }
 
 func modelDir(t *testing.T) string {

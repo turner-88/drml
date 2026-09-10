@@ -94,13 +94,31 @@ func TestSaliencyConcentrationSweep(t *testing.T) {
 				lit++
 			}
 		}
-		fmt.Printf("%-44s exif=%d grade=%d conf=%.3f conc=%.4f lit=%d/%d\n",
+		fmt.Printf("%-44s exif=%d grade=%d conf=%.3f method=%s ms=%d conc=%.4f lit=%d/%d",
 			filepath.Base(p), JPEGOrientation(raw), res.Grade, res.Confidence,
-			res.Saliency.Concentration, lit, len(res.Saliency.Grid))
+			res.Saliency.Method, res.InferenceMS, res.Saliency.Concentration, lit, len(res.Saliency.Grid))
 		concs = append(concs, res.Saliency.Concentration)
 
+		// On a gradient-capable graph, also compute the rollout map from the
+		// same tensors so the two methods can be compared per image: a low
+		// rank correlation is the class-specific map disagreeing with the
+		// class-agnostic one, which is the whole point of having it.
+		var rollout *Saliency
+		if eng.gradsIdx >= 0 {
+			attn, _, shape := runRaw(t, eng, eng.pre.Tensor(img))
+			mask := FundusMask(img, patchSide(shape), eng.roiLumaFloor())
+			if r, err := Rollout(attn, shape, mask); err == nil {
+				rollout = r
+				fmt.Printf(" rho(rollout,grad)=%.3f", spearman(rollout.Grid, res.Saliency.Grid))
+			}
+		}
+		fmt.Println()
+
 		if out := os.Getenv("DRML_SWEEP_OUT"); out != "" {
-			writeOverlay(t, out, filepath.Base(p), img, res.Saliency)
+			writeOverlay(t, out, filepath.Base(p)+"."+string(res.Saliency.Method), img, res.Saliency)
+			if rollout != nil {
+				writeOverlay(t, out, filepath.Base(p)+".rollout", img, rollout)
+			}
 		}
 	}
 
@@ -113,6 +131,25 @@ func TestSaliencyConcentrationSweep(t *testing.T) {
 		fmt.Printf("  p%-3.0f %.4f\n", p, percentileSorted(concs, p))
 	}
 	fmt.Println("\nSuggested: MinConcentration near p5, FullConcentration near p75.")
+	fmt.Println("Thresholds are per method: values measured under rollout do not carry over to grad-relevance.")
+}
+
+// spearman is the rank correlation of two equal-length vectors (ties by
+// position, which is fine for a diagnostic printout).
+func spearman(a, b []float32) float64 {
+	rank := func(v []float32) []float32 {
+		idx := make([]int, len(v))
+		for i := range idx {
+			idx[i] = i
+		}
+		sort.SliceStable(idx, func(i, j int) bool { return v[idx[i]] < v[idx[j]] })
+		r := make([]float32, len(v))
+		for pos, i := range idx {
+			r[i] = float32(pos)
+		}
+		return r
+	}
+	return pearson(rank(a), rank(b))
 }
 
 func writeOverlay(t *testing.T, dir, name string, img image.Image, sal *Saliency) {

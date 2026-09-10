@@ -20,20 +20,27 @@ type Saliency struct {
 	// It has to be computed on the raw values: normalization is an affine map
 	// and destroys the ratio.
 	Concentration float64
+	// Method records which algorithm produced Grid, so logs and diagnostics
+	// can tell a class-specific map from the rollout fallback.
+	Method ExplainMethod
 }
 
 // Rollout turns a ViT's attention tensors into a spatial saliency grid.
 //
-// Grad-CAM is the usual choice for this, but it needs a backward pass, and
-// ONNX Runtime is inference-only. Attention rollout (Abnar & Zuidema, 2020) is
-// forward-only and native to transformers: it composes each layer's attention
-// with a residual term and multiplies through the depth of the network, so the
-// CLS row of the product says how much each input patch contributed.
+// Attention rollout (Abnar & Zuidema, 2020) is forward-only and native to
+// transformers: it composes each layer's attention with a residual term and
+// multiplies through the depth of the network, so the CLS row of the product
+// says how much each input patch was mixed into the classification token.
 //
 //	Â_l      = 0.5 * mean_heads(A_l) + 0.5 * I     (residual stream)
 //	Â_l      = rowNormalize(Â_l)
 //	rollout  = Â_L @ ... @ Â_1
 //	saliency = rollout[CLS, 1:]                    (drop the CLS->CLS term)
+//
+// It is the fallback explanation, used when the graph exposes attentions but no
+// gradients. It is class-agnostic — the same map explains every grade — and on
+// the default checkpoint it is only weakly tied to the image, so GradRelevance
+// is preferred whenever the exported graph supports it.
 //
 // attn is the flattened [layers, batch, heads, tokens, tokens] output and shape
 // describes it. mask, when non-nil, must have one entry per patch and marks the
@@ -41,32 +48,11 @@ type Saliency struct {
 // outside it is zeroed and excluded from the normalization statistics, because
 // saliency on the black surround is not weak evidence, it is no evidence.
 func Rollout(attn []float32, shape []int64, mask []bool) (*Saliency, error) {
-	if len(shape) != 5 {
-		return nil, fmt.Errorf("attentions rank = %d, want 5 [layers,batch,heads,tokens,tokens]", len(shape))
+	layers, heads, tokens, side, err := attentionDims(shape, len(attn))
+	if err != nil {
+		return nil, err
 	}
-	layers, batch, heads := int(shape[0]), int(shape[1]), int(shape[2])
-	tokens, tokens2 := int(shape[3]), int(shape[4])
-
-	if tokens != tokens2 {
-		return nil, fmt.Errorf("attention matrix is %dx%d, want square", tokens, tokens2)
-	}
-	if batch != 1 {
-		return nil, fmt.Errorf("batch = %d, want 1", batch)
-	}
-	if layers < 1 || heads < 1 || tokens < 2 {
-		return nil, fmt.Errorf("degenerate attention shape %v", shape)
-	}
-	if want := layers * batch * heads * tokens * tokens; len(attn) != want {
-		return nil, fmt.Errorf("attentions has %d values, want %d", len(attn), want)
-	}
-
-	// Patch tokens are everything but the leading CLS token, and they must form
-	// a square grid (196 -> 14x14 for ViT-B/16 at 224px).
 	patches := tokens - 1
-	side := patchSide(shape)
-	if side == 0 {
-		return nil, fmt.Errorf("%d patch tokens is not a square grid", patches)
-	}
 	if mask != nil && len(mask) != patches {
 		return nil, fmt.Errorf("mask has %d cells, want %d", len(mask), patches)
 	}
@@ -124,7 +110,7 @@ func Rollout(attn []float32, shape []int64, mask []bool) (*Saliency, error) {
 
 	conc := concentration(grid, mask)
 	normalizeSaliency(grid, mask)
-	return &Saliency{Grid: grid, Side: side, Concentration: conc}, nil
+	return &Saliency{Grid: grid, Side: side, Concentration: conc, Method: ExplainRollout}, nil
 }
 
 // AttentionRollout is Rollout without an ROI mask, returning the bare grid.

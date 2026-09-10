@@ -54,12 +54,13 @@
 
         {{if .HeatmapURL}}
         <p class="hint">
-          Attention map (<em>attention rollout</em>) menunjukkan area yang paling memengaruhi
-          perhitungan model, dibatasi pada area retina yang tersorot. Pada model ini polanya
-          hanya sedikit berbeda antar citra (korelasi &plusmn;0,82 antara dua pasien berbeda),
-          sehingga peta ini <strong>bukan penanda lokasi lesi</strong> dan tidak boleh dipakai
-          untuk menentukan letak kelainan. Gunakan sebagai gambaran kasar saja; penentuan
-          diagnosis tetap memerlukan evaluasi dokter spesialis mata.
+          Attention map menunjukkan area yang paling mendukung hasil derajat yang diprediksi,
+          dihitung dari gradien kelas tersebut terhadap perhatian model
+          (<em>gradient-weighted attention relevance</em>) dan dibatasi pada area retina yang
+          tersorot. Resolusinya kasar (kisi 14&times;14) dan peta ini
+          <strong>bukan penanda lesi yang tervalidasi</strong>: gunakan sebagai petunjuk area
+          yang dilihat model, bukan sebagai penentu letak kelainan. Penentuan diagnosis tetap
+          memerlukan evaluasi dokter spesialis mata.
         </p>
         {{end}}
       </div>

@@ -45,7 +45,7 @@ type Service struct {
 	engine  *infer.Engine
 	store   *store.Store
 	storage storage.Storage
-	// heatmaps gates the attention-rollout overlay; see config.ModelConfig.
+	// heatmaps gates the saliency overlay; see config.ModelConfig.
 	heatmaps bool
 }
 
