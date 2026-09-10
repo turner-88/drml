@@ -187,7 +187,7 @@ func (h *Handler) AnalyticsPage(w http.ResponseWriter, r *http.Request) {
 
 	h.render(w, r, "analytics", map[string]any{
 		"Title":         "Analitik",
-		"Subtitle":      "Ringkasan hasil penapisan " + win.FromStr + " sampai " + win.ToStr,
+		"Subtitle":      "Ringkasan hasil screening " + win.FromStr + " sampai " + win.ToStr,
 		"Grades":        series.Grades,
 		"TotalGraded":   series.TotalGraded,
 		"Days":          series.Days,
