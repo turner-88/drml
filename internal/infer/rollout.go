@@ -3,9 +3,26 @@ package infer
 import (
 	"fmt"
 	"math"
+	"sort"
 )
 
-// AttentionRollout turns a ViT's attention tensors into a spatial saliency grid.
+// Saliency is one image's spatial explanation: a square grid of per-patch
+// scores plus the statistic that says how much to trust it.
+type Saliency struct {
+	// Grid holds Side*Side values in [0,1], row-major. Cells outside the
+	// fundus ROI, when a mask was supplied, are exactly 0.
+	Grid []float32
+	Side int
+	// Concentration is p98/mean of the raw saliency over the ROI. Uniform
+	// attention scores 1.0 and a peaked map scores higher, so it measures how
+	// much structure the map actually carries.
+	//
+	// It has to be computed on the raw values: normalization is an affine map
+	// and destroys the ratio.
+	Concentration float64
+}
+
+// Rollout turns a ViT's attention tensors into a spatial saliency grid.
 //
 // Grad-CAM is the usual choice for this, but it needs a backward pass, and
 // ONNX Runtime is inference-only. Attention rollout (Abnar & Zuidema, 2020) is
@@ -19,33 +36,39 @@ import (
 //	saliency = rollout[CLS, 1:]                    (drop the CLS->CLS term)
 //
 // attn is the flattened [layers, batch, heads, tokens, tokens] output and shape
-// describes it. The returned grid is side*side values in [0,1], row-major.
-func AttentionRollout(attn []float32, shape []int64) ([]float32, int, error) {
+// describes it. mask, when non-nil, must have one entry per patch and marks the
+// cells that lie inside the illuminated fundus disc; see FundusMask. Everything
+// outside it is zeroed and excluded from the normalization statistics, because
+// saliency on the black surround is not weak evidence, it is no evidence.
+func Rollout(attn []float32, shape []int64, mask []bool) (*Saliency, error) {
 	if len(shape) != 5 {
-		return nil, 0, fmt.Errorf("attentions rank = %d, want 5 [layers,batch,heads,tokens,tokens]", len(shape))
+		return nil, fmt.Errorf("attentions rank = %d, want 5 [layers,batch,heads,tokens,tokens]", len(shape))
 	}
 	layers, batch, heads := int(shape[0]), int(shape[1]), int(shape[2])
 	tokens, tokens2 := int(shape[3]), int(shape[4])
 
 	if tokens != tokens2 {
-		return nil, 0, fmt.Errorf("attention matrix is %dx%d, want square", tokens, tokens2)
+		return nil, fmt.Errorf("attention matrix is %dx%d, want square", tokens, tokens2)
 	}
 	if batch != 1 {
-		return nil, 0, fmt.Errorf("batch = %d, want 1", batch)
+		return nil, fmt.Errorf("batch = %d, want 1", batch)
 	}
 	if layers < 1 || heads < 1 || tokens < 2 {
-		return nil, 0, fmt.Errorf("degenerate attention shape %v", shape)
+		return nil, fmt.Errorf("degenerate attention shape %v", shape)
 	}
 	if want := layers * batch * heads * tokens * tokens; len(attn) != want {
-		return nil, 0, fmt.Errorf("attentions has %d values, want %d", len(attn), want)
+		return nil, fmt.Errorf("attentions has %d values, want %d", len(attn), want)
 	}
 
 	// Patch tokens are everything but the leading CLS token, and they must form
 	// a square grid (196 -> 14x14 for ViT-B/16 at 224px).
 	patches := tokens - 1
-	side := int(math.Round(math.Sqrt(float64(patches))))
-	if side*side != patches {
-		return nil, 0, fmt.Errorf("%d patch tokens is not a square grid", patches)
+	side := patchSide(shape)
+	if side == 0 {
+		return nil, fmt.Errorf("%d patch tokens is not a square grid", patches)
+	}
+	if mask != nil && len(mask) != patches {
+		return nil, fmt.Errorf("mask has %d cells, want %d", len(mask), patches)
 	}
 
 	n := tokens
@@ -99,8 +122,39 @@ func AttentionRollout(attn []float32, shape []int64) ([]float32, int, error) {
 	grid := make([]float32, patches)
 	copy(grid, rollout[1:tokens])
 
-	normalizeInPlace(grid)
-	return grid, side, nil
+	conc := concentration(grid, mask)
+	normalizeSaliency(grid, mask)
+	return &Saliency{Grid: grid, Side: side, Concentration: conc}, nil
+}
+
+// AttentionRollout is Rollout without an ROI mask, returning the bare grid.
+func AttentionRollout(attn []float32, shape []int64) ([]float32, int, error) {
+	sal, err := Rollout(attn, shape, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	return sal.Grid, sal.Side, nil
+}
+
+// patchSide reports the grid side an attention tensor's shape implies, or 0 if
+// it does not describe a square patch grid.
+//
+// Exposed separately from Rollout because the ROI mask has to be sized — and so
+// built — before the rollout runs, so that its normalization can exclude the
+// masked-out cells.
+func patchSide(shape []int64) int {
+	if len(shape) != 5 {
+		return 0
+	}
+	patches := int(shape[3]) - 1
+	if patches < 1 {
+		return 0
+	}
+	side := int(math.Round(math.Sqrt(float64(patches))))
+	if side*side != patches {
+		return 0
+	}
+	return side
 }
 
 // identity returns an n x n identity matrix in row-major order.
@@ -136,33 +190,65 @@ func matmul(dst, a, b []float32, n int) {
 // flatRelTolerance is the relative spread below which a saliency map is treated
 // as carrying no signal.
 //
-// Min-max normalization rescales whatever spread it finds to the full [0,1]
-// range, so a map whose values differ only in their last floating-point bits
-// would be stretched into a vivid, entirely fictitious heatmap. That is the
-// worst failure mode for an explainability feature — it looks confident and
-// means nothing. Comparing the spread against the magnitude of the values
-// keeps genuine low-contrast maps while rejecting pure accumulation noise.
+// Normalization rescales whatever spread it finds to the full [0,1] range, so a
+// map whose values differ only in their last floating-point bits would be
+// stretched into a vivid, entirely fictitious heatmap. That is the worst
+// failure mode for an explainability feature — it looks confident and means
+// nothing. Comparing the spread against the magnitude of the values keeps
+// genuine low-contrast maps while rejecting pure accumulation noise.
 const flatRelTolerance = 1e-6
 
-// normalizeInPlace min-max scales v into [0,1]. A map that is flat, or flat to
-// within float noise, becomes all zeros so it renders as "no signal" rather
-// than as invented structure.
-func normalizeInPlace(v []float32) {
+// Percentile bounds for normalization. Clipping instead of taking the raw
+// min and max stops one outlier patch — which on this checkpoint is often a
+// border artefact rather than a lesion — from compressing everything else into
+// the bottom of the colour ramp.
+const (
+	saliencyLoPct = 2.0
+	saliencyHiPct = 98.0
+)
+
+// concentration reports p98/mean of v over the masked-in cells. Uniform
+// saliency scores 1.0; the more the map concentrates on a few patches, the
+// higher it goes. Rollout values are non-negative, so the ratio is well defined
+// whenever the mean is positive.
+func concentration(v []float32, mask []bool) float64 {
+	in := selectMasked(v, mask)
+	if len(in) == 0 {
+		return 0
+	}
+	var sum float64
+	for _, x := range in {
+		sum += float64(x)
+	}
+	mean := sum / float64(len(in))
+	if mean <= 0 {
+		return 0
+	}
+	sort.Float64s(in)
+	return percentileSorted(in, saliencyHiPct) / mean
+}
+
+// normalizeSaliency clips v to its [p2, p98] range over the masked-in cells and
+// rescales that band to [0,1]. Masked-out cells become 0, as does a map that is
+// flat to within float noise, so it renders as "no signal" rather than as
+// invented structure.
+func normalizeSaliency(v []float32, mask []bool) {
 	if len(v) == 0 {
 		return
 	}
-	min, max := v[0], v[0]
-	for _, x := range v[1:] {
-		if x < min {
-			min = x
+	in := selectMasked(v, mask)
+	if len(in) == 0 {
+		for i := range v {
+			v[i] = 0
 		}
-		if x > max {
-			max = x
-		}
+		return
 	}
+	sort.Float64s(in)
+	lo := percentileSorted(in, saliencyLoPct)
+	hi := percentileSorted(in, saliencyHiPct)
 
-	span := float64(max - min)
-	scale := math.Max(math.Abs(float64(max)), math.Abs(float64(min)))
+	span := hi - lo
+	scale := math.Max(math.Abs(hi), math.Abs(lo))
 	if span <= flatRelTolerance*scale || span <= math.SmallestNonzeroFloat32 {
 		for i := range v {
 			v[i] = 0
@@ -171,8 +257,49 @@ func normalizeInPlace(v []float32) {
 	}
 
 	for i := range v {
-		v[i] = float32((float64(v[i]) - float64(min)) / span)
+		if mask != nil && !mask[i] {
+			v[i] = 0
+			continue
+		}
+		v[i] = float32(clamp01((float64(v[i]) - lo) / span))
 	}
+}
+
+// selectMasked copies the masked-in values of v into a new float64 slice. A nil
+// mask selects everything.
+func selectMasked(v []float32, mask []bool) []float64 {
+	out := make([]float64, 0, len(v))
+	for i, x := range v {
+		if mask == nil || mask[i] {
+			out = append(out, float64(x))
+		}
+	}
+	return out
+}
+
+// percentileSorted returns the p-th percentile of an ascending slice, linearly
+// interpolating between neighbours.
+func percentileSorted(sorted []float64, p float64) float64 {
+	if len(sorted) == 0 {
+		return 0
+	}
+	if len(sorted) == 1 {
+		return sorted[0]
+	}
+	pos := p / 100 * float64(len(sorted)-1)
+	lo := int(math.Floor(pos))
+	hi := int(math.Ceil(pos))
+	if lo < 0 {
+		lo, hi = 0, 0
+	}
+	if hi > len(sorted)-1 {
+		lo, hi = len(sorted)-1, len(sorted)-1
+	}
+	if lo == hi {
+		return sorted[lo]
+	}
+	f := pos - float64(lo)
+	return sorted[lo]*(1-f) + sorted[hi]*f
 }
 
 // exp wraps math.Exp so engine.go's Softmax stays free of float64 conversions

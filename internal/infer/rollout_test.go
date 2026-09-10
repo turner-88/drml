@@ -52,7 +52,7 @@ func TestAttentionRolloutFocusesOnAttendedPatch(t *testing.T) {
 		t.Fatalf("grid has %d values, want 4", len(grid))
 	}
 
-	// After min-max normalization the attended patch is 1 and the rest 0.
+	// After normalization the attended patch is 1 and the rest 0.
 	if grid[target-1] != 1 {
 		t.Errorf("attended patch saliency = %v, want 1", grid[target-1])
 	}
@@ -160,7 +160,7 @@ func TestSoftmaxIsStableAndSumsToOne(t *testing.T) {
 func TestRenderHeatmapHandlesMissingGrid(t *testing.T) {
 	src := imageRGBA(8, 8)
 	// A nil grid must degrade to the original image, not panic.
-	out := RenderHeatmap(src, nil, 0, DefaultHeatmapOptions())
+	out := RenderHeatmap(src, nil, DefaultHeatmapOptions())
 	if out.Bounds().Dx() != 8 || out.Bounds().Dy() != 8 {
 		t.Fatalf("bounds = %v, want 8x8", out.Bounds())
 	}

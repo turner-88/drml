@@ -81,6 +81,13 @@ func (s *Service) Create(ctx context.Context, r io.Reader, in Input) (int32, err
 	if err != nil {
 		return 0, ErrUnsupportedImage
 	}
+	// image.Decode drops EXIF orientation but the browser applies it, so a
+	// rotated upload would be graded sideways and its heatmap drawn against a
+	// differently rotated base image. Correcting it here, before anything else
+	// touches the pixels, keeps the gate, the model, the overlay and the
+	// clinician's view in agreement. The stored bytes and their digest are the
+	// untouched original either way.
+	img = infer.Upright(img, raw)
 
 	// First-tier gate, before anything is stored and before Predict competes
 	// for the single inference slot. A non-fundus upload leaves no blob and no
@@ -154,11 +161,12 @@ func (s *Service) Create(ctx context.Context, r io.Reader, in Input) (int32, err
 
 	// The heatmap is an aid, not the result: if rendering or storing it fails,
 	// log it and keep the prediction rather than failing the whole scan.
-	if s.heatmaps && len(res.Heatmap) > 0 {
+	if s.heatmaps && res.Saliency != nil {
 		key, err := s.storeHeatmap(ctx, img, res)
-		if err != nil {
+		switch {
+		case err != nil:
 			log.Printf("scan: heatmap render failed: %v", err)
-		} else {
+		case key != "":
 			params.HeatmapKey = store.NullString(key)
 		}
 	}
@@ -167,8 +175,17 @@ func (s *Service) Create(ctx context.Context, r io.Reader, in Input) (int32, err
 }
 
 // storeHeatmap renders and uploads the attention overlay.
+//
+// An empty key with a nil error means the saliency was too diffuse to draw
+// honestly: the scan then has no heatmap at all, which the detail page already
+// handles, rather than an overlay that would show the clinician a confident
+// peak the model never had.
 func (s *Service) storeHeatmap(ctx context.Context, src image.Image, res *infer.Result) (string, error) {
-	overlay := infer.RenderHeatmap(src, res.Heatmap, res.HeatmapDim, infer.DefaultHeatmapOptions())
+	opts := infer.DefaultHeatmapOptions()
+	if opts.EffectiveAlpha(res.Saliency.Concentration) <= 0 {
+		return "", nil
+	}
+	overlay := infer.RenderHeatmap(src, res.Saliency, opts)
 
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, overlay, &jpeg.Options{Quality: 85}); err != nil {

@@ -55,10 +55,10 @@ type Result struct {
 	// Probs holds all NumGrades softmax outputs, not just the winner, so the
 	// UI can show the full distribution and analytics can flag near-ties.
 	Probs []float32
-	// Heatmap is the attention-rollout saliency grid (14x14 for ViT-B/16),
-	// row-major and min-max normalized to [0,1]. Rendering is overlay.go's job.
-	Heatmap     []float32
-	HeatmapDim  int
+	// Saliency is the attention-rollout explanation (a 14x14 grid for
+	// ViT-B/16), masked to the fundus disc and normalized to [0,1]. Nil when
+	// the model was exported without attentions. Rendering is overlay.go's job.
+	Saliency    *Saliency
 	InferenceMS int
 }
 
@@ -263,6 +263,20 @@ func (e *Engine) SetGateEnabled(on bool) bool {
 	return true
 }
 
+// roiLumaFloor is the luma threshold that separates the illuminated fundus disc
+// from the black surround, for masking the saliency map.
+//
+// It reads the gate's calibrated value when one is loaded and the
+// pre-calibration default otherwise, so the mask keeps working on a deployment
+// whose gate is switched off: the border is not part of the retina either way,
+// and that is a fact about the image, not a policy about admitting it.
+func (e *Engine) roiLumaFloor() float64 {
+	if e.gate != nil && e.gate.LumaFloor > 0 {
+		return e.gate.LumaFloor
+	}
+	return DefaultGateConfig().LumaFloor
+}
+
 // CheckImage runs the gate's image heuristics.
 //
 // It is exposed separately from Predict so callers can reject an upload before
@@ -359,9 +373,19 @@ func (e *Engine) Predict(ctx context.Context, img image.Image) (*Result, error) 
 	// it just cannot explain itself.
 	if attnTensor, ok := outputs[1].(*ort.Tensor[float32]); ok {
 		shape := attnTensor.GetShape()
-		grid, dim, err := AttentionRollout(attnTensor.GetData(), shape)
-		if err == nil {
-			res.Heatmap, res.HeatmapDim = grid, dim
+		side := patchSide(shape)
+		// The mask keeps saliency off the black surround, where the model can
+		// only be attending to padding. Built here rather than in the renderer
+		// because the normalization statistics have to exclude those cells too.
+		mask := FundusMask(img, side, e.roiLumaFloor())
+		sal, err := Rollout(attnTensor.GetData(), shape, mask)
+		if err != nil {
+			// Not fatal — the grade still stands — but never silent: a
+			// regression in the rollout must not look like a model exported
+			// without attentions.
+			log.Printf("infer: attention rollout failed, no heatmap: %v", err)
+		} else {
+			res.Saliency = sal
 		}
 	}
 

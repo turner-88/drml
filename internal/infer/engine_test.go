@@ -147,17 +147,26 @@ func TestPredictProducesWellFormedResult(t *testing.T) {
 		t.Errorf("confidence %v != probs[%d] = %v", res.Confidence, res.Grade, res.Probs[res.Grade])
 	}
 
-	// The heatmap must be present and shaped for a 224px ViT-B/16.
-	if res.HeatmapDim != 14 {
-		t.Errorf("heatmap dim = %d, want 14", res.HeatmapDim)
+	// The saliency map must be present and shaped for a 224px ViT-B/16.
+	if res.Saliency == nil {
+		t.Fatal("no saliency map produced")
 	}
-	if len(res.Heatmap) != res.HeatmapDim*res.HeatmapDim {
-		t.Errorf("heatmap has %d values, want %d", len(res.Heatmap), res.HeatmapDim*res.HeatmapDim)
+	if res.Saliency.Side != 14 {
+		t.Errorf("saliency side = %d, want 14", res.Saliency.Side)
 	}
-	for _, v := range res.Heatmap {
+	if len(res.Saliency.Grid) != res.Saliency.Side*res.Saliency.Side {
+		t.Errorf("saliency has %d values, want %d",
+			len(res.Saliency.Grid), res.Saliency.Side*res.Saliency.Side)
+	}
+	for _, v := range res.Saliency.Grid {
 		if v < 0 || v > 1 {
-			t.Fatalf("heatmap value %v outside [0,1]", v)
+			t.Fatalf("saliency value %v outside [0,1]", v)
 		}
+	}
+	// Uniform attention scores 1.0, so anything below that is a broken
+	// statistic rather than a flat map.
+	if res.Saliency.Concentration < 1 {
+		t.Errorf("concentration = %v, want >= 1", res.Saliency.Concentration)
 	}
 }
 

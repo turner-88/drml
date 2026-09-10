@@ -588,10 +588,50 @@ and the binary embeds whatever the stylesheet was at build time.
 - Only 12% of saliency falls on dark border patches, so this is *not* a
   missing-fundus-crop bug.
 
-The UI labels it accurately ("not a lesion marker"). Set
-`MODEL_HEATMAP_ENABLED=false` to remove it entirely. A faithful alternative is
-occlusion sensitivity, but at ~196 forward passes per image it is far too slow
-for synchronous inference on 2 vCPU.
+This cannot be fixed by rendering, so the rendering is instead built not to
+overstate it:
+
+- **The overlay is confined to the illuminated disc.** `infer.FundusMask` drops
+  grid cells on the black surround before normalization, and `RenderHeatmap`
+  additionally refuses to paint any pixel below `ROILumaFloor` — both are
+  needed, because upsampling a 14x14 grid interpolates a lit boundary cell out
+  past the disc edge and the ramp crosses the paint threshold in the black.
+  Saliency there is not weak evidence about the retina, it is none.
+- **Normalization clips to p2/p98 of the ROI** rather than its min and max, so
+  one runaway border patch no longer compresses the rest of the map into the
+  bottom of the colour ramp.
+- **`Saliency.Concentration`** (p98/mean of the raw rollout over the ROI;
+  uniform attention scores 1.0) measures how much structure a map actually
+  carries, and `HeatmapOptions.MinConcentration`/`FullConcentration` ramp the
+  overlay's alpha by it, down to rendering no heatmap at all. Without this,
+  normalization guarantees a saturated peak on every scan however diffuse the
+  attention was.
+
+  **The ramp ships disabled (both 0).** The only corpus available here is 12
+  images, over which concentration runs p0 1.50, p50 1.67, p100 2.09 — and it
+  does not track pathology on that sample (a grade-0 scan scored the highest
+  and another the lowest). Two thresholds fitted to that would be overfitting,
+  not calibration. Re-measure on a real corpus and set them from the printed
+  distribution:
+
+  ```bash
+  DRML_SWEEP_DIR=/abs/path/to/scans DRML_SWEEP_OUT=/tmp/overlays \
+    go test ./internal/infer/ -run TestSaliencyConcentrationSweep -v
+  ```
+
+The UI says plainly that the map is not a lesion marker and must not be used to
+locate a lesion. Set `MODEL_HEATMAP_ENABLED=false` to remove it entirely. A
+faithful alternative is occlusion sensitivity, but at ~196 forward passes per
+image it is far too slow for synchronous inference on 2 vCPU.
+
+**EXIF orientation is applied at decode time.** `image.Decode` ignores the tag
+while browsers honour it, which used to grade a phone-shot fundus sideways and
+then draw its heatmap against a base image the browser had rotated —
+off by a rotation, and by an aspect ratio. `infer.Upright` now corrects the
+decoded pixels before the gate, the model and the overlay see them; the stored
+bytes and their SHA-256 remain the untouched original. Scans graded before this
+change keep their old heatmap: the 14x14 grid is never persisted, only the
+baked JPEG, so re-rendering one would mean re-running inference.
 
 **Grade 3 (Severe) is under-detected** — in the confusion matrix, 15 of 30
 severe cases were called Moderate. Both are ≥ 2, so the referable/not-referable
