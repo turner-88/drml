@@ -61,7 +61,10 @@
         {{range .Scans}}
         <tr>
           <td class="whitespace-nowrap">{{if .CreatedAt.Valid}}{{unixDate .CreatedAt.Int32}}{{end}}</td>
-          <td>{{if .PatientRef.Valid}}{{.PatientRef.String}}{{else}}<span class="muted">—</span>{{end}}</td>
+          <td>
+            {{if .PatientRef.Valid}}{{.PatientRef.String}}{{else}}<span class="muted">—</span>{{end}}
+            {{if .Eye.Valid}}<span class="badge badge-neutral ml-1">{{.Eye.String}}</span>{{end}}
+          </td>
           <td>
             {{if .PredictedGrade.Valid}}
               <span class="pill {{gradeBadge .PredictedGrade.Int16}}">{{gradeLabel .PredictedGrade.Int16}}</span>

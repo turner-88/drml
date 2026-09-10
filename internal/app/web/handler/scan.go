@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -16,6 +17,7 @@ import (
 	db "github.com/remorac/drml/internal/database/sqlc"
 	"github.com/remorac/drml/internal/database/store"
 	"github.com/remorac/drml/internal/infer"
+	"github.com/remorac/drml/internal/pdfdoc"
 	"github.com/remorac/drml/internal/shared/pagination"
 )
 
@@ -26,6 +28,12 @@ var allowedUploadExt = map[string]string{
 	"image/webp": ".webp",
 }
 
+// modePDF is the value the upload form posts when the PDF tab is selected.
+const modePDF = "pdf"
+
+// pdfMIME is what http.DetectContentType reports for a PDF.
+const pdfMIME = "application/pdf"
+
 // NewScanPage renders the upload form.
 func (h *Handler) NewScanPage(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, "scan_new", map[string]any{"Title": "Pemeriksaan Baru"})
@@ -33,10 +41,21 @@ func (h *Handler) NewScanPage(w http.ResponseWriter, r *http.Request) {
 
 // CreateScan handles the upload and runs inference synchronously.
 func (h *Handler) CreateScan(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseMultipartForm(scansvc.MaxImageBytes); err != nil {
-		h.renderScanError(w, r, "Gagal memproses data unggahan.")
+	// The overall body size is already bounded by mw.MaxBodyBytes and, in
+	// production, by nginx; the per-format cap is applied further in, once the
+	// type has actually been sniffed, so a PDF never fails with a misleading
+	// "too large" error just because the mode field was stale.
+	//
+	// The small in-memory budget here is deliberate: it pushes the upload into
+	// a temp file, which is what lets a PDF be parsed through an io.ReaderAt
+	// instead of being held on the heap.
+	if err := r.ParseMultipartForm(1 << 20); err != nil {
+		h.renderScanError(w, r, "Gagal memproses data unggahan. Pastikan ukuran berkas tidak melebihi "+
+			strconv.Itoa(scansvc.MaxPDFBytes>>20)+" MB.")
 		return
 	}
+
+	wantPDF := r.FormValue("mode") == modePDF
 
 	file, header, err := r.FormFile("image")
 	if err != nil {
@@ -49,16 +68,30 @@ func (h *Handler) CreateScan(w http.ResponseWriter, r *http.Request) {
 	buf := make([]byte, 512)
 	n, _ := file.Read(buf)
 	mime := strings.Split(http.DetectContentType(buf[:n]), ";")[0]
-	ext, ok := allowedUploadExt[mime]
-	if !ok {
-		h.renderScanError(w, r, "Format file tidak didukung: "+mime+". Gunakan JPG, PNG, atau WebP.")
-		return
-	}
 	if _, err := file.Seek(0, 0); err != nil {
 		h.renderScanError(w, r, "Gagal memproses file gambar.")
 		return
 	}
-	_ = header
+
+	// The sniffed type decides, not the posted mode: a mislabelled tab must not
+	// be able to route a PDF into the image path or the other way round, and a
+	// form posted from a browser where upload.js never ran must not be rejected
+	// over a mode field it had no chance to correct. wantPDF only sharpens the
+	// error message when the two disagree.
+	if mime == pdfMIME {
+		h.createScanFromPDF(w, r, file, header.Size)
+		return
+	}
+
+	ext, ok := allowedUploadExt[mime]
+	if !ok {
+		if wantPDF {
+			h.renderScanError(w, r, "Mode PDF dipilih, tetapi file yang diunggah bukan PDF ("+mime+").")
+			return
+		}
+		h.renderScanError(w, r, "Format file tidak didukung: "+mime+". Gunakan JPG, PNG, atau WebP.")
+		return
+	}
 
 	u := actor(r)
 	id, err := h.scans.Create(r.Context(), file, scansvc.Input{
@@ -90,6 +123,55 @@ func (h *Handler) CreateScan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, "/scans/"+strconv.Itoa(int(id)), http.StatusFound)
+}
+
+// createScanFromPDF screens every eye in an IMAGEnet report.
+//
+// file is the multipart part, which is an io.ReaderAt, so the report is parsed
+// off disk rather than buffered.
+func (h *Handler) createScanFromPDF(w http.ResponseWriter, r *http.Request, file io.ReaderAt, size int64) {
+	u := actor(r)
+	results, err := h.scans.CreateFromPDF(r.Context(), file, size, scansvc.Input{
+		PatientRef: strings.TrimSpace(r.FormValue("patient_ref")),
+		Notes:      strings.TrimSpace(r.FormValue("notes")),
+		ActorID:    u.ID,
+	})
+
+	// Some eyes may have been graded even when err is set. Recording those and
+	// telling the clinician which failed beats discarding good screenings.
+	if len(results) == 0 {
+		switch {
+		case errors.Is(err, infer.ErrBusy):
+			w.WriteHeader(http.StatusServiceUnavailable)
+			h.renderScanError(w, r, "Server sedang sibuk memproses antrean pemeriksaan lain. Silakan coba beberapa saat lagi.")
+		case errors.Is(err, pdfdoc.ErrNotSupportedPDF):
+			h.renderScanError(w, r, "File PDF ini tidak dapat dibaca. Gunakan hasil ekspor PDF dari IMAGEnet, "+
+				"atau unggah foto fundusnya langsung sebagai gambar.")
+		case errors.Is(err, pdfdoc.ErrNoFundus):
+			h.renderScanError(w, r, "Tidak ditemukan foto fundus di dalam PDF ini.")
+		case errors.Is(err, pdfdoc.ErrAmbiguousEye):
+			// Refusing beats guessing: a scan filed against the wrong eye is
+			// worse than one the clinician has to upload manually.
+			log.Printf("scan create pdf: %v", err)
+			h.renderScanError(w, r, "Label mata (OD/OS) pada PDF tidak dapat dicocokkan dengan fotonya, "+
+				"sehingga sisi mata tidak dapat dipastikan. Unggah foto fundusnya langsung sebagai gambar.")
+		case errors.Is(err, scansvc.ErrPDFTooLarge):
+			h.renderScanError(w, r, "Ukuran PDF melebihi "+
+				strconv.Itoa(scansvc.MaxPDFBytes>>20)+" MB.")
+		case errors.Is(err, infer.ErrNotFundus):
+			log.Printf("scan create pdf: gate rejected extracted image: %v", err)
+			h.renderScanError(w, r, "Citra yang diambil dari PDF tidak dikenali sebagai foto fundus retina.")
+		default:
+			log.Printf("scan create pdf: %v", err)
+			h.renderScanError(w, r, "Gagal memproses PDF: "+err.Error())
+		}
+		return
+	}
+
+	if err != nil {
+		log.Printf("scan create pdf: partial success (%d recorded): %v", len(results), err)
+	}
+	http.Redirect(w, r, "/scans/"+strconv.Itoa(int(results[0].ID)), http.StatusFound)
 }
 
 func (h *Handler) renderScanError(w http.ResponseWriter, r *http.Request, msg string) {
@@ -140,6 +222,30 @@ func (h *Handler) ScanDetail(w http.ResponseWriter, r *http.Request) {
 		"HeatmapURL": h.blobURL(r.Context(), row.HeatmapKey.String),
 		"LowConfidence": row.Confidence.Valid &&
 			row.Confidence.Float64 < LowConfidenceThreshold,
+	}
+
+	// A scan taken from a report links to the other eye, which is what the
+	// shared source_ref buys instead of an exam table. The two conditions are
+	// separate: the grouping always exists, while the source document is only
+	// there when the deployment chose to keep it.
+	if row.SourceRef.Valid && row.SourceRef.String != "" {
+		siblings, err := h.store.ListScansBySourceRef(r.Context(), db.ListScansBySourceRefParams{
+			SourceRef: row.SourceRef,
+			AllScans:  all,
+			CreatedBy: store.NullInt32(uid),
+		})
+		if err != nil {
+			log.Printf("scan detail %d: siblings: %v", id, err)
+		}
+		for _, sib := range siblings {
+			if sib.ID != row.ID {
+				data["OtherEye"] = sib
+				break
+			}
+		}
+	}
+	if row.SourceKey.Valid && row.SourceKey.String != "" {
+		data["SourceURL"] = h.blobURL(r.Context(), row.SourceKey.String)
 	}
 	if row.CreatedBy.Valid {
 		if creator, err := h.store.GetUserByID(r.Context(), row.CreatedBy.Int32); err == nil {

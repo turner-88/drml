@@ -16,7 +16,11 @@ The model is exported to ONNX **once on a dev machine**; the server loads it
 through the ONNX Runtime C API via cgo. There is no Python at runtime.
 
 ```
-fundus image ──► Go: decode → non-fundus gate ──► rejected, nothing stored
+fundus image ──┐
+               │
+IMAGEnet PDF ──┤ (extract eyes: OD/OS from the report label)
+               │
+               └► Go: decode → non-fundus gate ──► rejected, nothing stored
                    │                    (52 µs, before the inference slot)
                    ├─► resize 224² → normalize
                    │
@@ -276,6 +280,7 @@ there is no client-side data fetch and no chart JSON endpoint.
 | `ORT_INTRA_OP_THREADS` | `2` | matches 2 vCPU |
 | `ORT_MAX_QUEUE_DEPTH` | `4` | requests beyond this get `503` |
 | `STORAGE_DRIVER` | `local` | or `r2` |
+| `STORAGE_KEEP_SOURCE_PDF` | `false` | keep the uploaded report too; ~15 MB per screening against ~1 MB for the imagery |
 | `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | — | required when driver is `r2` |
 
 Scan rows store an opaque storage **key**, never a URL, so moving to R2 is a
@@ -466,6 +471,24 @@ cd /opt/drml && sudo -u drml ./bin/seed -username admin -password 'ChangeMe123'
 The `cd` is load-bearing: `config.Load()` reads `.env` relative to the working
 directory. `seed` refuses to run if an administrator already exists.
 
+`schema.sql` drops every table, so it is for a **new** database only. An
+existing deployment upgrades in place by applying the migration files beside it
+instead — they are additive and safe to run against live data:
+
+```bash
+mysql -h <db-host> -u drml -p drml \
+  < /opt/drml/src/internal/database/migration/2026-09-10-scan-pdf-source.sql
+```
+
+That one adds PDF report input (`eye`, `source_kind`, `source_ref`,
+`source_key`). Existing
+rows become `source_kind = 'image'` with a NULL eye, which is exactly what they
+are. See [step 15](#15-updating) for where a migration belongs in a release.
+
+There is no migration runner and no schema-version table: re-applying a
+migration fails with `Duplicate column name` rather than passing silently, so a
+double-apply is loud instead of ambiguous.
+
 If this box also runs the database, copy `deploy/my.cnf` into
 `/etc/mysql/conf.d/` first — it holds MySQL to ~450 MB, which is what makes the
 2 GB budget work.
@@ -500,9 +523,12 @@ server {
     listen [::]:80;
     server_name drml.example.com;
 
-    # The app caps uploads at 12 MiB (MaxImageBytes). Sitting above it lets the
-    # app return its own error page instead of a bare nginx 413.
-    client_max_body_size 16m;
+    # The app caps uploads at 12 MiB for an image (MaxImageBytes) and 32 MiB
+    # for an IMAGEnet PDF report (MaxPDFBytes) — the reports are large because
+    # the fundus rasters inside them are stored uncompressed. Sitting above the
+    # larger cap lets the app return its own error page instead of a bare
+    # nginx 413.
+    client_max_body_size 40m;
 
     # There is deliberately no `location /static` block:
     #   - CSS/JS/templates are embedded in the binary, so there is no directory
@@ -575,6 +601,8 @@ the toggle survived — that setting lives in the database, not in `gate.json`.
 
 #### 15. Updating
 
+A release with no schema or nginx change is three commands:
+
 ```bash
 cd /opt/drml/src && sudo -u drml git pull
 sudo -u drml env PATH=$PATH CGO_ENABLED=1 \
@@ -582,9 +610,42 @@ sudo -u drml env PATH=$PATH CGO_ENABLED=1 \
 sudo systemctl restart drml
 ```
 
+**Check `internal/database/migration/` for a migration first.** Skipping one
+does not degrade gracefully: sqlc expands `SELECT *` into explicit column
+lists, so a column the binary expects and the table lacks fails *every* scan
+query — history, detail, dashboard and analytics — with `Unknown column`, not
+just the new feature.
+
+Migrations here are written to be additive, and the order follows from that:
+
+```bash
+# 1. schema first, while the OLD binary is still serving
+sudo -u drml mysql -h <db-host> -u drml -p drml \
+  < /opt/drml/src/internal/database/migration/<migration>.sql
+```
+
+Running it *before* the restart is deliberate and needs no downtime window. The
+running release's generated SQL names its own columns, so added ones are
+invisible to it, and added columns are nullable or carry a default, so its
+inserts still satisfy every constraint. Running it *after* the restart would
+instead leave the new binary querying columns that do not exist yet.
+
+```bash
+# 2. nginx, only when a release changes upload limits
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+PDF input was such a release: reports run 13.4–16.9 MB, so the previous
+`client_max_body_size 16m` rejected the larger ones with a bare nginx 413
+before the app was ever reached. See [step 11](#11-nginx) for the current value.
+
+Then run the three commands above.
+
 A change to a template's Tailwind classes also needs `make css` run and
 `static/css/app.css` committed from a dev machine — the VPS has no Tailwind CLI,
-and the binary embeds whatever the stylesheet was at build time.
+and the binary embeds whatever the stylesheet was at build time. The Docker
+build guards only that the file is non-empty, not that it is current, so a
+stale commit ships silently and shows up as unstyled markup.
 
 ---
 
@@ -663,7 +724,66 @@ severe cases were called Moderate. Both are ≥ 2, so the referable/not-referabl
 decision is largely unaffected, but the severity number should not be relied on
 in isolation.
 
-**No batch upload** — dropped by request; uploads are synchronous, one at a time.
+**PDF reports are read without a rasterizer.** IMAGEnet exports its screening
+report through Chrome's print-to-PDF, which embeds the fundus photographs as
+`FlateDecode` RGB — plain zlib-compressed pixels, already black outside the
+disc. `internal/pdfdoc` inflates them directly, so there is no MuPDF, no
+`pdftoppm`, no cgo beyond ONNX Runtime and nothing new in the runtime image,
+and the photographs come out at their original framing instead of re-rendered
+at print DPI.
+
+The rasters are 40–50 MB each once inflated, which does not fit the memory
+budget, so they are never materialised. Extraction takes **two streaming
+passes** over the same stream: the first inflates it row by row and box-averages
+it into a coarse 1024 px raster, which is enough to locate the discs; the second
+inflates it again and copies just those windows out at native resolution. Both
+eyes of a shared raster are filled during that one second pass, so a two-eye
+report costs two inflates rather than three.
+
+The crop keeps full resolution **because the report is not kept** — see below.
+That costs memory: a native 2368×2360 crop is ~22 MB, both eyes are live at
+once, and `RenderHeatmap` allocates a full-size RGBA *and* a full-size Gray
+beside the image it is grading. The arithmetic suggests ~72 MB; **measured, a
+two-eye report adds 38 MB** over the warm 517 MB steady state, peaking at
+556 MB, because the first eye's crop is collected before the second is graded.
+Comfortable under `MemoryMax=1200M`, and a deliberate trade rather than an
+oversight. `TestExtractStreamsLargeRasters` fails if anyone replaces the
+streaming decode with a whole-image inflate, or quietly reverts the crop to a
+decimated one.
+
+**Laterality comes from the report text, never from position.** A report
+carrying a single eye centres it on the page whether it is the left or the
+right one — two such reports are byte-identical in layout and differ only in
+their `OD(R)`/`OS(L)` label — so the label is parsed through the font's
+ToUnicode CMap, with the graphics state tracked so the labels resolve to
+absolute page positions. When labels and images cannot be matched one-for-one
+the upload is refused: a scan filed against the wrong eye is worse than one the
+clinician has to upload by hand.
+
+A two-eye report produces **two scan rows**, one per eye, linked by a shared
+`source_ref` rather than an exam table. That is what lets the detail page offer
+the other eye without a new join. `source_ref` is an opaque token, not a
+storage key, so the link holds whether or not the report itself was kept.
+
+**The source report is discarded by default.** Keeping it costs roughly 15x the
+storage: a screening is ~1 MB of imagery, and the report adds ~15 MB on top, so
+100 reports would be ~1.6 GB rather than ~100 MB on a VPS disk that also carries
+MySQL and a 171 MB model. Set `STORAGE_KEEP_SOURCE_PDF=true` for deployments
+that want the original document — the letterhead, the capture dates — and it is
+then stored once, referenced by both eyes through `source_key`, and deleted with
+the last scan referencing it.
+
+These two decisions are linked: because the report is normally gone, the
+extracted crop is the only record of the image, which is why it is kept at the
+resolution the report stored it in rather than being decimated. Discarding the
+report saves ~15 MB per screening; the full-resolution crop spends ~0.8 MB of
+it back.
+
+**No batch upload** — dropped by request; uploads are synchronous, one at a
+time. A PDF is the one exception, and only because it is one document for one
+patient: its eyes are still screened sequentially through the single inference
+slot, so a two-eye report takes roughly twice as long as an image — measured at
+1.4–1.7 s end to end, including the two streaming passes over the document.
 
 ---
 

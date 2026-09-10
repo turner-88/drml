@@ -43,6 +43,10 @@ CREATE TABLE `scan` (
   `inference_ms` int(11) DEFAULT NULL,
   `status` varchar(16) NOT NULL DEFAULT 'done' COMMENT 'done | failed',
   `error_message` varchar(255) DEFAULT NULL,
+  `eye` varchar(2) DEFAULT NULL COMMENT 'OD | OS, read from the report label; NULL for a plain image upload',
+  `source_kind` varchar(8) NOT NULL DEFAULT 'image' COMMENT 'image | pdf',
+  `source_ref` char(32) DEFAULT NULL COMMENT 'groups the eyes of one report; not a storage key',
+  `source_key` varchar(255) DEFAULT NULL COMMENT 'storage key of the retained source PDF, when STORAGE_KEEP_SOURCE_PDF',
   `created_at` int(11) DEFAULT NULL,
   `created_by` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -50,6 +54,10 @@ CREATE TABLE `scan` (
   KEY `idx_scan_grade_created` (`predicted_grade`, `created_at`),
   KEY `idx_scan_patient` (`patient_ref`),
   KEY `idx_scan_created_by` (`created_by`, `created_at`),
+  -- Declared last so that a database upgraded with the matching migration is
+  -- identical to a fresh one: ALTER TABLE can only append an index.
+  -- source_key carries no index: it is only ever read off a row already in hand.
+  KEY `idx_scan_source_ref` (`source_ref`),
   CONSTRAINT `fk_scan_created_by` FOREIGN KEY (`created_by`) REFERENCES `user` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 

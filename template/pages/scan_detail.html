@@ -30,7 +30,12 @@
   <div class="lg:col-span-3">
     <div class="card print-block">
       <div class="card-header">
-        <h2 class="card-title">Foto Fundus</h2>
+        <h2 class="card-title">
+          Foto Fundus
+          {{if .Scan.Eye.Valid}}
+          <span class="badge badge-neutral ml-2">{{eyeLabel .Scan.Eye.String}}</span>
+          {{end}}
+        </h2>
         {{if .HeatmapURL}}
         {{/* The checkbox drives the overlay through a :has() rule in app.src.css,
              so the cross-fade needs no JavaScript. */}}
@@ -43,6 +48,24 @@
       </div>
 
       <div class="card-body">
+        {{if or .OtherEye .SourceURL}}
+        {{/* A scan taken from a report. The other eye is always linkable; the
+             original document only when the deployment keeps it. */}}
+        <div class="flex flex-wrap items-center gap-2 mb-3 no-print">
+          {{if .OtherEye}}
+          <a href="/scans/{{.OtherEye.ID}}" class="btn btn-sm btn-outline">
+            <i data-lucide="arrow-left-right"></i>
+            Lihat mata {{eyeLabel .OtherEye.Eye.String}}
+          </a>
+          {{end}}
+          {{if .SourceURL}}
+          <a href="{{.SourceURL}}" target="_blank" rel="noopener" class="btn btn-sm btn-ghost">
+            <i data-lucide="file-text"></i> PDF asli
+          </a>
+          {{end}}
+        </div>
+        {{end}}
+
         <div class="fundus-frame">
           <div class="overlay-stack">
             <img src="{{.ImageURL}}" alt="Foto fundus pasien">

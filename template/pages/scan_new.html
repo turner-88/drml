@@ -16,13 +16,31 @@
   <form id="scan-form" method="post" action="/scans" enctype="multipart/form-data">
     <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
 
+    {{/* The default mode is declared here and nowhere else: upload.js reads this
+         value back on init rather than hardcoding one of its own. */}}
+    <input type="hidden" name="mode" id="scan-mode" value="pdf">
+
     <div class="card">
       <div class="card-header">
-        <h2 class="card-title">Unggah Foto Fundus</h2>
-        <span class="card-note">Format JPG, PNG, atau WebP — maks. 12 MB</span>
+        <h2 class="card-title" id="mode-title">Unggah PDF IMAGEnet</h2>
+        <span class="card-note" id="mode-note">Hasil ekspor PDF dari IMAGEnet — maks. 32 MB</span>
       </div>
 
       <div class="card-body">
+        {{/* Mode selector. The posted "mode" only picks the branch; CreateScan
+             still sniffs the file and rejects a mismatch, so switching tabs
+             cannot smuggle a file into the wrong path. */}}
+        <div role="tablist" class="mode-tabs" aria-label="Jenis berkas">
+          <button type="button" role="tab" id="mode-tab-pdf" data-mode="pdf"
+                  aria-selected="true" class="mode-tab is-active">
+            <i data-lucide="file-text"></i> PDF IMAGEnet
+          </button>
+          <button type="button" role="tab" id="mode-tab-image" data-mode="image"
+                  aria-selected="false" class="mode-tab">
+            <i data-lucide="image"></i> Gambar
+          </button>
+        </div>
+
         <div id="dropzone" class="dropzone">
           {{/* The file input stays outside both states below, and the states are
                toggled with [hidden] rather than removed from the DOM — see the
@@ -32,22 +50,35 @@
                button is disabled until a file is chosen, and CreateScan
                validates server-side regardless. */}}
           <input type="file" name="image" id="scan-image"
-                 accept="image/jpeg,image/png,image/webp" class="hidden">
+                 accept="application/pdf" class="hidden">
 
           <div id="dz-empty">
-            <i data-lucide="image-plus" class="w-10 h-10 mx-auto text-base-content/30"></i>
-            <p class="mt-3 text-sm">Tarik &amp; lepas file gambar ke sini, atau</p>
+            {{/* The glyph is swapped by toggling these containers rather than
+                 rewriting data-lucide: lucide.createIcons() runs once, after
+                 upload.js, and replaces each <i> with an <svg>. */}}
+            <div id="dz-icon-pdf">
+              <i data-lucide="file-text" class="w-10 h-10 mx-auto text-base-content/30"></i>
+            </div>
+            <div id="dz-icon-image" hidden>
+              <i data-lucide="image-plus" class="w-10 h-10 mx-auto text-base-content/30"></i>
+            </div>
+            <p class="mt-3 text-sm" id="dz-empty-text">Tarik &amp; lepas file PDF ke sini, atau</p>
             <label for="scan-image" class="btn btn-outline btn-sm mt-3">Pilih File</label>
-            <p class="hint mt-3">Khusus foto kamera fundus retina. Foto biasa atau tangkapan layar otomatis ditolak.</p>
+            <p class="hint mt-3" id="dz-empty-hint">Foto fundus diambil otomatis dari PDF. Laporan dua mata menghasilkan dua pemeriksaan (OD dan OS).</p>
           </div>
 
           <div id="dz-preview" hidden>
-            <div class="fundus-frame mx-auto" style="max-width:22rem">
+            {{/* A PDF has no browser-renderable preview, so the image frame is
+                 swapped for a plain file card in that mode. */}}
+            <div class="fundus-frame mx-auto" id="dz-frame" style="max-width:22rem">
               <img id="dz-img" alt="Pratinjau foto fundus">
+            </div>
+            <div id="dz-doc" class="dz-doc" hidden>
+              <i data-lucide="file-text"></i>
             </div>
             <p id="dz-name" class="mt-3 text-sm font-medium"></p>
             <p id="dz-size" class="hint"></p>
-            <button type="button" id="dz-clear" class="btn btn-ghost btn-xs mt-2">Ganti gambar</button>
+            <button type="button" id="dz-clear" class="btn btn-ghost btn-xs mt-2">Ganti berkas</button>
           </div>
         </div>
 
@@ -66,7 +97,7 @@
 
         <div role="alert" class="alert alert-info mt-2">
           <i data-lucide="info"></i>
-          <span>Mohon jangan menutup atau memuat ulang halaman ini selama proses analisis berlangsung.</span>
+          <span id="analysis-note">Analisis PDF dua mata memerlukan waktu lebih lama. Mohon jangan menutup atau memuat ulang halaman ini.</span>
         </div>
       </div>
 

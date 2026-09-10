@@ -419,6 +419,32 @@
   }
   .dropzone.is-dragging { @apply border-primary; background: color-mix(in srgb, var(--color-primary) 5%, white); }
 
+  /* Input-mode tabs. A segmented control rather than a select: there are only
+     two modes and the choice changes what the drop zone accepts, so it should
+     be visible at a glance instead of folded into a menu. */
+  .mode-tabs {
+    @apply mb-4 inline-flex gap-1 rounded-lg p-1;
+    background: color-mix(in srgb, currentColor 6%, transparent);
+  }
+  .mode-tab {
+    @apply inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors;
+    @apply opacity-60;
+  }
+  .mode-tab:hover { @apply opacity-100; }
+  .mode-tab.is-active {
+    @apply opacity-100 bg-base-100 shadow-sm;
+  }
+  .mode-tab i { @apply w-4 h-4; }
+
+  /* A PDF has no renderable thumbnail, so its preview is a plain document
+     mark sized to sit where the fundus frame would. */
+  .dz-doc {
+    @apply mx-auto flex items-center justify-center rounded-xl border border-base-300;
+    width: 6rem;
+    height: 7.5rem;
+  }
+  .dz-doc i { @apply w-10 h-10 opacity-40; }
+
   /* ================================================================ */
   /* Charts — server-rendered, no charting library                     */
   /* ================================================================ */

@@ -134,7 +134,7 @@ func (q *Queries) GradeDistribution(ctx context.Context, arg GradeDistributionPa
 }
 
 const lowConfidenceScans = `-- name: LowConfidenceScans :many
-SELECT id, patient_ref, notes, image_key, heatmap_key, image_sha256, predicted_grade, confidence, probabilities, model_id, model_sha256, inference_ms, status, error_message, created_at, created_by FROM ` + "`" + `scan` + "`" + `
+SELECT id, patient_ref, notes, image_key, heatmap_key, image_sha256, predicted_grade, confidence, probabilities, model_id, model_sha256, inference_ms, status, error_message, eye, source_kind, source_ref, source_key, created_at, created_by FROM ` + "`" + `scan` + "`" + `
 WHERE status = 'done'
   AND confidence < ?
   AND (? = 1 OR created_by = ?)
@@ -188,6 +188,10 @@ func (q *Queries) LowConfidenceScans(ctx context.Context, arg LowConfidenceScans
 			&i.InferenceMs,
 			&i.Status,
 			&i.ErrorMessage,
+			&i.Eye,
+			&i.SourceKind,
+			&i.SourceRef,
+			&i.SourceKey,
 			&i.CreatedAt,
 			&i.CreatedBy,
 		); err != nil {

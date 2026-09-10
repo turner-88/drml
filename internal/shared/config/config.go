@@ -110,6 +110,14 @@ type StorageConfig struct {
 	// R2PresignExpirySeconds bounds the lifetime of generated GET URLs. Scan
 	// images are patient data, so objects stay private and are served presigned.
 	R2PresignExpirySeconds int
+
+	// KeepSourcePDF retains the uploaded report alongside the images it yielded.
+	//
+	// Off by default because it is expensive: a report is ~15 MB against ~1 MB
+	// for the two fundus images extracted from it. The extracted images are kept
+	// at full resolution either way, so this buys the original document - the
+	// clinic letterhead, the capture dates - and not extra image detail.
+	KeepSourcePDF bool
 }
 
 // PasswordPolicyConfig controls password validation rules.
@@ -171,6 +179,7 @@ func Load() *Config {
 			R2SecretAccessKey:      getEnv("R2_SECRET_ACCESS_KEY", ""),
 			R2Bucket:               getEnv("R2_BUCKET", ""),
 			R2PresignExpirySeconds: getEnvInt("R2_PRESIGN_EXPIRY_SECONDS", 900),
+			KeepSourcePDF:          getEnvBool("STORAGE_KEEP_SOURCE_PDF", false),
 		},
 		PasswordPolicy: PasswordPolicyConfig{
 			ComplexityLevel:    getEnv("PASSWORD_COMPLEXITY_LEVEL", "medium"),

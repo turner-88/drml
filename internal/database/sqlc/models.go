@@ -41,8 +41,16 @@ type Scan struct {
 	// done | failed
 	Status       string         `json:"status"`
 	ErrorMessage sql.NullString `json:"error_message"`
-	CreatedAt    sql.NullInt32  `json:"created_at"`
-	CreatedBy    sql.NullInt32  `json:"created_by"`
+	// OD | OS, read from the report label; NULL for a plain image upload
+	Eye sql.NullString `json:"eye"`
+	// image | pdf
+	SourceKind string `json:"source_kind"`
+	// groups the eyes of one report; not a storage key
+	SourceRef sql.NullString `json:"source_ref"`
+	// storage key of the retained source PDF, when STORAGE_KEEP_SOURCE_PDF
+	SourceKey sql.NullString `json:"source_key"`
+	CreatedAt sql.NullInt32  `json:"created_at"`
+	CreatedBy sql.NullInt32  `json:"created_by"`
 }
 
 type User struct {

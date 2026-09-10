@@ -36,6 +36,10 @@ type Querier interface {
 	// cheap as the archive grows on a 2 GB box.
 	GradeDistribution(ctx context.Context, arg GradeDistributionParams) ([]GradeDistributionRow, error)
 	ListScans(ctx context.Context, arg ListScansParams) ([]Scan, error)
+	// Both eyes of one PDF report share a source_ref, which is what lets the detail
+	// page offer the other eye without a separate exam table. It is a plain grouping
+	// token, so it works whether or not the report itself was retained.
+	ListScansBySourceRef(ctx context.Context, arg ListScansBySourceRefParams) ([]Scan, error)
 	ListSettings(ctx context.Context) ([]AppSetting, error)
 	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
 	// At ~70% accuracy the model's own uncertainty is the most useful signal it

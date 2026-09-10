@@ -37,6 +37,21 @@ func init() {
 // a 2 GB box, not a quality limit.
 const MaxImageBytes = 12 << 20 // 12 MiB
 
+// MaxPDFBytes bounds an IMAGEnet report.
+//
+// The cap is far higher than MaxImageBytes because the reports genuinely are:
+// the fundus rasters inside them are stored as uncompressed RGB, so a
+// two-eye report runs 13-17 MB. The bytes are never held in memory - the
+// document is parsed through an io.ReaderAt over the multipart temp file - so
+// this bounds disk and parse time rather than the heap.
+const MaxPDFBytes = 32 << 20 // 32 MiB
+
+// Source kinds recorded on a scan row.
+const (
+	SourceImage = "image"
+	SourcePDF   = "pdf"
+)
+
 // ErrUnsupportedImage is returned when the upload is not a decodable image.
 var ErrUnsupportedImage = errors.New("format gambar tidak didukung")
 
@@ -45,12 +60,23 @@ type Service struct {
 	engine  *infer.Engine
 	store   *store.Store
 	storage storage.Storage
-	// heatmaps gates the saliency overlay; see config.ModelConfig.
-	heatmaps bool
+	opts    Options
 }
 
-func NewService(engine *infer.Engine, st *store.Store, blobs storage.Storage, heatmaps bool) *Service {
-	return &Service{engine: engine, store: st, storage: blobs, heatmaps: heatmaps}
+// Options are the deployment switches the screening path honours.
+//
+// Grouped into a struct rather than passed as positional booleans: two adjacent
+// bool arguments are trivially transposed at the call site, and one of these
+// decides whether patient documents are written to disk.
+type Options struct {
+	// Heatmaps gates the saliency overlay; see config.ModelConfig.
+	Heatmaps bool
+	// KeepSourcePDF retains the uploaded report; see config.StorageConfig.
+	KeepSourcePDF bool
+}
+
+func NewService(engine *infer.Engine, st *store.Store, blobs storage.Storage, opts Options) *Service {
+	return &Service{engine: engine, store: st, storage: blobs, opts: opts}
 }
 
 // Input describes one screening request.
@@ -61,6 +87,18 @@ type Input struct {
 	Ext string
 	// ActorID is the user recording the scan.
 	ActorID int32
+	// Eye is the laterality ("OD"/"OS"), set only when it is known. An image
+	// upload carries no reliable laterality, so it stays empty there.
+	Eye string
+	// SourceKind is SourceImage or SourcePDF.
+	SourceKind string
+	// SourceRef groups the eyes of one report. Both eyes share it, which is
+	// what links them without an exam table. It is an opaque token, set for
+	// every PDF upload whether or not the report itself is retained.
+	SourceRef string
+	// SourceKey is the stored source document, set only when the deployment
+	// opts in with STORAGE_KEEP_SOURCE_PDF.
+	SourceKey string
 }
 
 // Create runs inference and persists the result.
@@ -89,6 +127,18 @@ func (s *Service) Create(ctx context.Context, r io.Reader, in Input) (int32, err
 	// untouched original either way.
 	img = infer.Upright(img, raw)
 
+	in.SourceKind = SourceImage
+	return s.createFromImage(ctx, img, raw, in)
+}
+
+// createFromImage is the half of the workflow that works on decoded pixels:
+// gate, store, predict, heatmap, row. Both input modes go through it so a scan
+// from a PDF and a scan from an image can never drift apart.
+//
+// blob is what gets stored and hashed. For an image upload that is the
+// untouched original; for a PDF it is the extracted eye re-encoded as JPEG,
+// with the report itself kept separately under in.SourceKey.
+func (s *Service) createFromImage(ctx context.Context, img image.Image, blob []byte, in Input) (int32, error) {
 	// First-tier gate, before anything is stored and before Predict competes
 	// for the single inference slot. A non-fundus upload leaves no blob and no
 	// row: it is not a failed screening, it is not a screening at all.
@@ -99,14 +149,14 @@ func (s *Service) Create(ctx context.Context, r io.Reader, in Input) (int32, err
 			rep.Metrics["centre_contrast"])
 	}
 
-	sum := sha256.Sum256(raw)
+	sum := sha256.Sum256(blob)
 	digest := hex.EncodeToString(sum[:])
 
 	imageKey, err := storage.NewKey("scans", in.Ext)
 	if err != nil {
 		return 0, err
 	}
-	if err := s.storage.Put(ctx, imageKey, bytes.NewReader(raw), contentTypeFor(in.Ext)); err != nil {
+	if err := s.storage.Put(ctx, imageKey, bytes.NewReader(blob), contentTypeFor(in.Ext)); err != nil {
 		return 0, fmt.Errorf("simpan gambar: %w", err)
 	}
 
@@ -118,6 +168,10 @@ func (s *Service) Create(ctx context.Context, r io.Reader, in Input) (int32, err
 		ModelID:     s.engine.ModelID(),
 		ModelSha256: s.engine.ModelSHA256(),
 		Status:      "done",
+		Eye:         store.NullString(in.Eye),
+		SourceKind:  sourceKindOr(in.SourceKind),
+		SourceRef:   store.NullString(in.SourceRef),
+		SourceKey:   store.NullString(in.SourceKey),
 		CreatedAt:   store.NullInt32(int32(time.Now().Unix())),
 		CreatedBy:   store.NullInt32(in.ActorID),
 	}
@@ -161,7 +215,7 @@ func (s *Service) Create(ctx context.Context, r io.Reader, in Input) (int32, err
 
 	// The heatmap is an aid, not the result: if rendering or storing it fails,
 	// log it and keep the prediction rather than failing the whole scan.
-	if s.heatmaps && res.Saliency != nil {
+	if s.opts.Heatmaps && res.Saliency != nil {
 		key, err := s.storeHeatmap(ctx, img, res)
 		switch {
 		case err != nil:
@@ -223,7 +277,26 @@ func (s *Service) Delete(ctx context.Context, id int32, allScans bool, actorID i
 
 	// Blobs are removed after the row, so a failure here leaves an orphaned
 	// file rather than a row pointing at a missing image.
-	for _, key := range []string{row.ImageKey, row.HeatmapKey.String} {
+	keys := []string{row.ImageKey, row.HeatmapKey.String}
+
+	// The source report is shared by both eyes, so it may only go once the
+	// last scan referencing it has. The check runs unscoped: a clinician
+	// deleting their own scan must not strand the other eye's PDF just
+	// because that row belongs to someone else.
+	if row.SourceKey.Valid && row.SourceKey.String != "" {
+		remaining, err := s.store.ListScansBySourceRef(ctx, db.ListScansBySourceRefParams{
+			SourceRef: row.SourceRef,
+			AllScans:  1,
+		})
+		switch {
+		case err != nil:
+			log.Printf("scan: source pdf %s left in place: %v", row.SourceKey.String, err)
+		case len(remaining) == 0:
+			keys = append(keys, row.SourceKey.String)
+		}
+	}
+
+	for _, key := range keys {
 		if key == "" {
 			continue
 		}
@@ -258,4 +331,13 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n]
+}
+
+// sourceKindOr defaults a blank source kind to an image upload, so a caller
+// that predates the PDF path still writes a valid row.
+func sourceKindOr(kind string) string {
+	if kind == "" {
+		return SourceImage
+	}
+	return kind
 }

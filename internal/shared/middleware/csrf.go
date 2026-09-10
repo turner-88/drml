@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"net/http"
+	"strings"
 )
 
 type csrfCtxKey struct{}
@@ -69,6 +70,15 @@ func CSRFMiddleware(cfg CSRFConfig) func(http.Handler) http.Handler {
 				// is what HTMX sends for non-POST verbs, which carry no form body.
 				submitted := r.Header.Get("X-CSRF-Token")
 				if submitted == "" {
+					// FormValue would parse a multipart body with Go's 32 MiB
+					// in-memory default, which would hold a whole PDF report on
+					// the heap before the handler ever sees it. Parsing first
+					// with a small budget spills the large parts to a temp file
+					// instead; a non-multipart body errors here and FormValue
+					// then handles it as before.
+					if isMultipart(r) {
+						_ = r.ParseMultipartForm(multipartMemory)
+					}
 					submitted = r.FormValue(cfg.FieldName)
 				}
 				if submitted == "" || subtle.ConstantTimeCompare([]byte(submitted), []byte(token)) != 1 {
@@ -100,4 +110,13 @@ func isStateChanging(method string) bool {
 	default:
 		return false
 	}
+}
+
+// multipartMemory is how much of a multipart upload is kept in memory before
+// the rest spills to a temp file.
+const multipartMemory = 1 << 20
+
+func isMultipart(r *http.Request) bool {
+	ct := r.Header.Get("Content-Type")
+	return strings.HasPrefix(ct, "multipart/form-data")
 }

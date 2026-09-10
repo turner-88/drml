@@ -52,8 +52,8 @@ INSERT INTO ` + "`" + `scan` + "`" + ` (
   patient_ref, notes, image_key, heatmap_key, image_sha256,
   predicted_grade, confidence, probabilities,
   model_id, model_sha256, inference_ms,
-  status, error_message, created_at, created_by
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  status, error_message, eye, source_kind, source_ref, source_key, created_at, created_by
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateScanParams struct {
@@ -70,6 +70,10 @@ type CreateScanParams struct {
 	InferenceMs    sql.NullInt32   `json:"inference_ms"`
 	Status         string          `json:"status"`
 	ErrorMessage   sql.NullString  `json:"error_message"`
+	Eye            sql.NullString  `json:"eye"`
+	SourceKind     string          `json:"source_kind"`
+	SourceRef      sql.NullString  `json:"source_ref"`
+	SourceKey      sql.NullString  `json:"source_key"`
 	CreatedAt      sql.NullInt32   `json:"created_at"`
 	CreatedBy      sql.NullInt32   `json:"created_by"`
 }
@@ -89,6 +93,10 @@ func (q *Queries) CreateScan(ctx context.Context, arg CreateScanParams) (sql.Res
 		arg.InferenceMs,
 		arg.Status,
 		arg.ErrorMessage,
+		arg.Eye,
+		arg.SourceKind,
+		arg.SourceRef,
+		arg.SourceKey,
 		arg.CreatedAt,
 		arg.CreatedBy,
 	)
@@ -112,7 +120,7 @@ func (q *Queries) DeleteScan(ctx context.Context, arg DeleteScanParams) error {
 }
 
 const getScan = `-- name: GetScan :one
-SELECT id, patient_ref, notes, image_key, heatmap_key, image_sha256, predicted_grade, confidence, probabilities, model_id, model_sha256, inference_ms, status, error_message, created_at, created_by FROM ` + "`" + `scan` + "`" + ` WHERE id = ? LIMIT 1
+SELECT id, patient_ref, notes, image_key, heatmap_key, image_sha256, predicted_grade, confidence, probabilities, model_id, model_sha256, inference_ms, status, error_message, eye, source_kind, source_ref, source_key, created_at, created_by FROM ` + "`" + `scan` + "`" + ` WHERE id = ? LIMIT 1
 `
 
 func (q *Queries) GetScan(ctx context.Context, id int32) (Scan, error) {
@@ -133,6 +141,10 @@ func (q *Queries) GetScan(ctx context.Context, id int32) (Scan, error) {
 		&i.InferenceMs,
 		&i.Status,
 		&i.ErrorMessage,
+		&i.Eye,
+		&i.SourceKind,
+		&i.SourceRef,
+		&i.SourceKey,
 		&i.CreatedAt,
 		&i.CreatedBy,
 	)
@@ -140,7 +152,7 @@ func (q *Queries) GetScan(ctx context.Context, id int32) (Scan, error) {
 }
 
 const getScanForUser = `-- name: GetScanForUser :one
-SELECT id, patient_ref, notes, image_key, heatmap_key, image_sha256, predicted_grade, confidence, probabilities, model_id, model_sha256, inference_ms, status, error_message, created_at, created_by FROM ` + "`" + `scan` + "`" + `
+SELECT id, patient_ref, notes, image_key, heatmap_key, image_sha256, predicted_grade, confidence, probabilities, model_id, model_sha256, inference_ms, status, error_message, eye, source_kind, source_ref, source_key, created_at, created_by FROM ` + "`" + `scan` + "`" + `
 WHERE id = ?
   AND (? = 1 OR created_by = ?)
 LIMIT 1
@@ -173,6 +185,10 @@ func (q *Queries) GetScanForUser(ctx context.Context, arg GetScanForUserParams) 
 		&i.InferenceMs,
 		&i.Status,
 		&i.ErrorMessage,
+		&i.Eye,
+		&i.SourceKind,
+		&i.SourceRef,
+		&i.SourceKey,
 		&i.CreatedAt,
 		&i.CreatedBy,
 	)
@@ -180,7 +196,7 @@ func (q *Queries) GetScanForUser(ctx context.Context, arg GetScanForUserParams) 
 }
 
 const listScans = `-- name: ListScans :many
-SELECT id, patient_ref, notes, image_key, heatmap_key, image_sha256, predicted_grade, confidence, probabilities, model_id, model_sha256, inference_ms, status, error_message, created_at, created_by FROM ` + "`" + `scan` + "`" + `
+SELECT id, patient_ref, notes, image_key, heatmap_key, image_sha256, predicted_grade, confidence, probabilities, model_id, model_sha256, inference_ms, status, error_message, eye, source_kind, source_ref, source_key, created_at, created_by FROM ` + "`" + `scan` + "`" + `
 WHERE (? = 1 OR created_by = ?)
   AND (? IS NULL OR predicted_grade = ?)
   AND (? IS NULL OR patient_ref = ?)
@@ -238,6 +254,70 @@ func (q *Queries) ListScans(ctx context.Context, arg ListScansParams) ([]Scan, e
 			&i.InferenceMs,
 			&i.Status,
 			&i.ErrorMessage,
+			&i.Eye,
+			&i.SourceKind,
+			&i.SourceRef,
+			&i.SourceKey,
+			&i.CreatedAt,
+			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listScansBySourceRef = `-- name: ListScansBySourceRef :many
+SELECT id, patient_ref, notes, image_key, heatmap_key, image_sha256, predicted_grade, confidence, probabilities, model_id, model_sha256, inference_ms, status, error_message, eye, source_kind, source_ref, source_key, created_at, created_by FROM ` + "`" + `scan` + "`" + `
+WHERE source_ref = ?
+  AND (? = 1 OR created_by = ?)
+ORDER BY eye, id
+`
+
+type ListScansBySourceRefParams struct {
+	SourceRef sql.NullString `json:"source_ref"`
+	AllScans  interface{}    `json:"all_scans"`
+	CreatedBy sql.NullInt32  `json:"created_by"`
+}
+
+// Both eyes of one PDF report share a source_ref, which is what lets the detail
+// page offer the other eye without a separate exam table. It is a plain grouping
+// token, so it works whether or not the report itself was retained.
+func (q *Queries) ListScansBySourceRef(ctx context.Context, arg ListScansBySourceRefParams) ([]Scan, error) {
+	rows, err := q.db.QueryContext(ctx, listScansBySourceRef, arg.SourceRef, arg.AllScans, arg.CreatedBy)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Scan
+	for rows.Next() {
+		var i Scan
+		if err := rows.Scan(
+			&i.ID,
+			&i.PatientRef,
+			&i.Notes,
+			&i.ImageKey,
+			&i.HeatmapKey,
+			&i.ImageSha256,
+			&i.PredictedGrade,
+			&i.Confidence,
+			&i.Probabilities,
+			&i.ModelID,
+			&i.ModelSha256,
+			&i.InferenceMs,
+			&i.Status,
+			&i.ErrorMessage,
+			&i.Eye,
+			&i.SourceKind,
+			&i.SourceRef,
+			&i.SourceKey,
 			&i.CreatedAt,
 			&i.CreatedBy,
 		); err != nil {
@@ -255,7 +335,7 @@ func (q *Queries) ListScans(ctx context.Context, arg ListScansParams) ([]Scan, e
 }
 
 const recentScans = `-- name: RecentScans :many
-SELECT id, patient_ref, notes, image_key, heatmap_key, image_sha256, predicted_grade, confidence, probabilities, model_id, model_sha256, inference_ms, status, error_message, created_at, created_by FROM ` + "`" + `scan` + "`" + `
+SELECT id, patient_ref, notes, image_key, heatmap_key, image_sha256, predicted_grade, confidence, probabilities, model_id, model_sha256, inference_ms, status, error_message, eye, source_kind, source_ref, source_key, created_at, created_by FROM ` + "`" + `scan` + "`" + `
 WHERE (? = 1 OR created_by = ?)
   AND status = 'done'
 ORDER BY created_at DESC, id DESC
@@ -292,6 +372,10 @@ func (q *Queries) RecentScans(ctx context.Context, arg RecentScansParams) ([]Sca
 			&i.InferenceMs,
 			&i.Status,
 			&i.ErrorMessage,
+			&i.Eye,
+			&i.SourceKind,
+			&i.SourceRef,
+			&i.SourceKey,
 			&i.CreatedAt,
 			&i.CreatedBy,
 		); err != nil {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	scansvc "github.com/remorac/drml/internal/app/scan"
 	"github.com/remorac/drml/internal/app/web/handler"
 	"github.com/remorac/drml/internal/shared/config"
 	mw "github.com/remorac/drml/internal/shared/middleware"
@@ -36,6 +37,11 @@ func Routes(cfg *config.Config, h *handler.Handler) chi.Router {
 		RedirectURL: "/login",
 		CookieName:  "drml_token",
 	})
+
+	// Ahead of CSRF on purpose: that middleware parses the multipart body to
+	// read the token, so this is the last point at which an oversized upload
+	// can be cut off before it is written to a temp file.
+	r.Use(mw.MaxBodyBytes(scansvc.MaxPDFBytes))
 
 	r.Group(func(r chi.Router) {
 		r.Use(csrf)

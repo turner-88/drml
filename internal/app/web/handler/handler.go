@@ -108,6 +108,7 @@ func (h *Handler) funcs() template.FuncMap {
 		"int16":       func(v int) int16 { return int16(v) },
 		"seq":         seq,
 		"isReferable": func(g int16) bool { return g >= 2 },
+		"eyeLabel":    eyeLabelID,
 	}
 }
 
@@ -310,4 +311,19 @@ func seq(n int) []int {
 		s[i] = i
 	}
 	return s
+}
+
+// eyeLabelID spells out a laterality code for a clinician reading in
+// Indonesian. "OD" and "OS" are the terms in the report, but the side is what
+// actually matters when acting on a result, so both are shown.
+func eyeLabelID(eye string) string {
+	switch eye {
+	case "OD":
+		return "OD (mata kanan)"
+	case "OS":
+		return "OS (mata kiri)"
+	case "":
+		return ""
+	}
+	return eye
 }

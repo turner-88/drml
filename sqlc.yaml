@@ -2,7 +2,11 @@ version: "2"
 sql:
   - engine: "mysql"
     queries: "internal/database/query"
-    schema: "internal/database/migration"
+    # schema.sql alone, not the whole directory: the dated files beside it are
+    # upgrade steps for existing deployments, and replaying them over a schema
+    # that already includes their columns is not something sqlc can make sense
+    # of. schema.sql stays the authoritative definition of the current shape.
+    schema: "internal/database/migration/schema.sql"
     gen:
       go:
         package: "sqlc"

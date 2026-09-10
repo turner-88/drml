@@ -80,7 +80,10 @@ func main() {
 	// at the file's default, which is the safe direction.
 	applyGateSetting(st, engine)
 
-	scans := scan.NewService(engine, st, blobs, cfg.Model.HeatmapEnabled)
+	scans := scan.NewService(engine, st, blobs, scan.Options{
+		Heatmaps:      cfg.Model.HeatmapEnabled,
+		KeepSourcePDF: cfg.Storage.KeepSourcePDF,
+	})
 
 	h, err := handler.New(cfg, st, scans, engine, blobs, assets.TemplateFS)
 	if err != nil {
