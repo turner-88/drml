@@ -20,8 +20,9 @@ func (h *Handler) settingsData(r *http.Request, errMsg string) map[string]any {
 		// Saved drives the success notice. There is no flash infrastructure in
 		// this app, so the redirect carries it in the query string — the same
 		// idiom the login page uses for ?blocked=1.
-		"Saved":       r.URL.Query().Get("saved") == "1",
-		"Calibration": h.engine.GateCalibration(),
+		"Saved":               r.URL.Query().Get("saved") == "1",
+		"Calibration":         h.engine.GateCalibration(),
+		"RegistrationEnabled": h.registrationOpen(r.Context()),
 	}
 	if errMsg != "" {
 		data["Error"] = errMsg
@@ -69,6 +70,27 @@ func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
 	// Disabling a clinical safety control is worth an audit line of its own,
 	// beyond the updated_by column on the row.
 	log.Printf("settings: non-fundus gate set to %v by %s (id %d)", want, me.Username, me.ID)
+
+	http.Redirect(w, r, "/admin/settings?saved=1", http.StatusSeeOther)
+}
+
+// UpdateRegistrationSetting opens or closes public clinician sign-up.
+//
+// A separate form from the gate's: with gate.json absent the gate checkbox is
+// disabled and submits nothing, so sharing one form would store gate=false on
+// every registration change.
+func (h *Handler) UpdateRegistrationSetting(w http.ResponseWriter, r *http.Request) {
+	// An unchecked checkbox submits nothing, so absence means off.
+	want := r.FormValue("registration_enabled") == "on"
+	me := actor(r)
+
+	if err := h.store.SetBoolSetting(r.Context(), store.SettingRegistrationEnabled, want, me.ID); err != nil {
+		log.Printf("settings: save registration.enabled: %v", err)
+		h.render(w, r, "settings", h.settingsData(r, "Gagal menyimpan perubahan pengaturan."))
+		return
+	}
+
+	log.Printf("settings: public registration set to %v by %s (id %d)", want, me.Username, me.ID)
 
 	http.Redirect(w, r, "/admin/settings?saved=1", http.StatusSeeOther)
 }

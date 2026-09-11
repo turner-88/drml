@@ -29,6 +29,7 @@ type Querier interface {
 	// package store. An absent row means "no preference expressed", which the
 	// caller resolves to its own default — it is not the same as a stored false.
 	GetSetting(ctx context.Context, settingKey string) (AppSetting, error)
+	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id int32) (User, error)
 	GetUserByUsername(ctx context.Context, username string) (User, error)
 	// Analytics aggregate in SQL, never in Go: the scan table's indexes
@@ -46,6 +47,9 @@ type Querier interface {
 	// produces; this queue is what makes the tool honest rather than oracular.
 	LowConfidenceScans(ctx context.Context, arg LowConfidenceScansParams) ([]Scan, error)
 	RecentScans(ctx context.Context, arg RecentScansParams) ([]Scan, error)
+	// ResetUserPassword only matches while the hash is still the one the reset link
+	// was issued against, so two submissions of the same link cannot both succeed.
+	ResetUserPassword(ctx context.Context, arg ResetUserPasswordParams) (int64, error)
 	// Buckets by local calendar day without consulting the MySQL session time
 	// zone. FROM_UNIXTIME() would: it resolves @@session.time_zone, which defaults
 	// to SYSTEM (the DB host's OS zone) and which the DSN never pins, so its day

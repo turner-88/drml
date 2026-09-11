@@ -15,6 +15,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/mail"
 	"os"
 	"time"
 
@@ -31,7 +32,7 @@ func main() {
 	username := flag.String("username", "admin", "administrator username")
 	password := flag.String("password", "", "administrator password (required)")
 	name := flag.String("name", "Administrator", "display name")
-	email := flag.String("email", "", "email address")
+	email := flag.String("email", "", "email address, where password-reset links are sent (required)")
 	force := flag.Bool("force", false, "create even if an administrator already exists")
 	flag.Parse()
 
@@ -42,6 +43,11 @@ func main() {
 	}
 	if len(*password) < 8 {
 		fmt.Fprintln(os.Stderr, "error: password must be at least 8 characters")
+		os.Exit(2)
+	}
+	// A bare address only: ParseAddress also accepts "Name <addr>".
+	if addr, err := mail.ParseAddress(*email); err != nil || addr.Address != *email || len(*email) > 100 {
+		fmt.Fprintln(os.Stderr, "error: -email is required and must be a plain address, e.g. admin@example.com")
 		os.Exit(2)
 	}
 
@@ -83,7 +89,7 @@ func main() {
 	now := int32(time.Now().Unix())
 	res, err := st.CreateUser(ctx, db.CreateUserParams{
 		Name:         store.NullString(*name),
-		Email:        store.NullString(*email),
+		Email:        *email,
 		Username:     *username,
 		PasswordHash: string(hash),
 		Role:         int32(model.UserRoleAdmin),

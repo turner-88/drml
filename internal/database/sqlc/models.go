@@ -54,9 +54,10 @@ type Scan struct {
 }
 
 type User struct {
-	ID    int32          `json:"id"`
-	Name  sql.NullString `json:"name"`
-	Email sql.NullString `json:"email"`
+	ID   int32          `json:"id"`
+	Name sql.NullString `json:"name"`
+	// unique; where password-reset links are sent
+	Email string `json:"email"`
 	// letter: required, number: optional, symbol: forbidden
 	Username     string `json:"username"`
 	PasswordHash string `json:"password_hash"`

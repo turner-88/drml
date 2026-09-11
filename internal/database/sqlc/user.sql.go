@@ -46,7 +46,7 @@ INSERT INTO ` + "`" + `user` + "`" + ` (
 
 type CreateUserParams struct {
 	Name               sql.NullString `json:"name"`
-	Email              sql.NullString `json:"email"`
+	Email              string         `json:"email"`
 	Username           string         `json:"username"`
 	PasswordHash       string         `json:"password_hash"`
 	Role               int32          `json:"role"`
@@ -81,6 +81,31 @@ DELETE FROM ` + "`" + `user` + "`" + ` WHERE id = ?
 func (q *Queries) DeleteUser(ctx context.Context, id int32) error {
 	_, err := q.db.ExecContext(ctx, deleteUser, id)
 	return err
+}
+
+const getUserByEmail = `-- name: GetUserByEmail :one
+SELECT id, name, email, username, password_hash, role, subrole, must_change_password, suspended_at, created_at, updated_at, created_by, updated_by FROM ` + "`" + `user` + "`" + ` WHERE email = ? LIMIT 1
+`
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByEmail, email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Email,
+		&i.Username,
+		&i.PasswordHash,
+		&i.Role,
+		&i.Subrole,
+		&i.MustChangePassword,
+		&i.SuspendedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CreatedBy,
+		&i.UpdatedBy,
+	)
+	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
@@ -188,6 +213,37 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 	return items, nil
 }
 
+const resetUserPassword = `-- name: ResetUserPassword :execrows
+UPDATE ` + "`" + `user` + "`" + `
+SET password_hash = ?, must_change_password = NULL,
+    updated_at = ?, updated_by = ?
+WHERE id = ? AND password_hash = ?
+`
+
+type ResetUserPasswordParams struct {
+	NewHash   string        `json:"new_hash"`
+	UpdatedAt sql.NullInt32 `json:"updated_at"`
+	UpdatedBy sql.NullInt32 `json:"updated_by"`
+	ID        int32         `json:"id"`
+	OldHash   string        `json:"old_hash"`
+}
+
+// ResetUserPassword only matches while the hash is still the one the reset link
+// was issued against, so two submissions of the same link cannot both succeed.
+func (q *Queries) ResetUserPassword(ctx context.Context, arg ResetUserPasswordParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, resetUserPassword,
+		arg.NewHash,
+		arg.UpdatedAt,
+		arg.UpdatedBy,
+		arg.ID,
+		arg.OldHash,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const setUserSuspended = `-- name: SetUserSuspended :exec
 UPDATE ` + "`" + `user` + "`" + ` SET suspended_at = ?, updated_at = ?, updated_by = ? WHERE id = ?
 `
@@ -217,7 +273,7 @@ WHERE id = ?
 
 type UpdateUserParams struct {
 	Name      sql.NullString `json:"name"`
-	Email     sql.NullString `json:"email"`
+	Email     string         `json:"email"`
 	Role      int32          `json:"role"`
 	Subrole   int32          `json:"subrole"`
 	UpdatedAt sql.NullInt32  `json:"updated_at"`

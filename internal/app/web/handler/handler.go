@@ -18,6 +18,7 @@ import (
 	"github.com/remorac/drml/internal/database/store"
 	"github.com/remorac/drml/internal/infer"
 	"github.com/remorac/drml/internal/shared/config"
+	"github.com/remorac/drml/internal/shared/mailer"
 	mw "github.com/remorac/drml/internal/shared/middleware"
 	"github.com/remorac/drml/internal/shared/model"
 	"github.com/remorac/drml/internal/storage"
@@ -35,6 +36,8 @@ type Handler struct {
 	scans   *scan.Service
 	engine  *infer.Engine
 	storage storage.Storage
+	// mailer delivers password-reset links; nil switches forgot-password off.
+	mailer mailer.Mailer
 
 	tmplFS fs.FS
 	// assetV is the cache-busting fingerprint appended to the CSS/JS URLs.
@@ -53,11 +56,12 @@ func New(
 	scans *scan.Service,
 	engine *infer.Engine,
 	blobs storage.Storage,
+	mail mailer.Mailer,
 	tmplFS fs.FS,
 ) (*Handler, error) {
 	h := &Handler{
 		cfg: cfg, store: st, scans: scans, engine: engine,
-		storage: blobs, tmplFS: tmplFS,
+		storage: blobs, mailer: mail, tmplFS: tmplFS,
 		assetV: assets.StaticVersion,
 		pages:  map[string]*template.Template{},
 		guest:  map[string]*template.Template{},
@@ -84,7 +88,7 @@ func New(
 		h.pages[name] = t
 	}
 
-	for _, name := range []string{"login"} {
+	for _, name := range []string{"login", "register", "forgot_password", "reset_password"} {
 		t, err := parse("guest.html", name)
 		if err != nil {
 			return nil, fmt.Errorf("parse guest template %q: %w", name, err)

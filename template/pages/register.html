@@ -1,0 +1,75 @@
+{{define "content"}}
+<div class="flex items-center gap-3 mb-6 lg:hidden">
+  <div class="brand-mark"><i data-lucide="eye"></i></div>
+  <div>
+    <div class="font-heading font-bold leading-tight" style="color:var(--color-ink)">DRML</div>
+    <div class="text-xs text-base-content/55">Screening Retinopati Diabetik</div>
+  </div>
+</div>
+
+<h1 class="text-2xl font-bold">Daftar Akun</h1>
+<p class="page-subtitle mb-6">Buat akun untuk mengunggah dan melihat riwayat pemeriksaan Anda sendiri.</p>
+
+{{if .Error}}
+<div role="alert" class="alert alert-error mb-4">
+  <i data-lucide="alert-circle"></i>
+  <span>{{.Error}}</span>
+</div>
+{{end}}
+
+<form method="post" action="/register" class="flex flex-col gap-4">
+  <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+
+  <div class="field">
+    <span class="label-text">Nama Lengkap</span>
+    <label class="input">
+      <i data-lucide="id-card" class="w-4 h-4 text-base-content/40"></i>
+      <input type="text" name="name" value="{{.Name}}" required maxlength="100" autofocus
+             autocomplete="name" placeholder="Masukkan nama lengkap">
+    </label>
+  </div>
+
+  <div class="field">
+    <span class="label-text">Email <span class="label-alt">untuk pemulihan password</span></span>
+    <label class="input">
+      <i data-lucide="mail" class="w-4 h-4 text-base-content/40"></i>
+      <input type="email" name="email" value="{{.Email}}" required maxlength="100"
+             autocomplete="email" placeholder="contoh@domain.com">
+    </label>
+  </div>
+
+  <div class="field">
+    <span class="label-text">Username <span class="label-alt">huruf dan angka saja</span></span>
+    <label class="input">
+      <i data-lucide="user" class="w-4 h-4 text-base-content/40"></i>
+      <input type="text" name="username" value="{{.Username}}" required minlength="3" maxlength="50"
+             pattern="[A-Za-z0-9]+" autocomplete="username" placeholder="Masukkan username">
+    </label>
+  </div>
+
+  <div class="field">
+    <span class="label-text">Password</span>
+    <label class="input">
+      <i data-lucide="lock" class="w-4 h-4 text-base-content/40"></i>
+      <input type="password" name="password" required minlength="8" maxlength="64"
+             autocomplete="new-password" placeholder="Minimal 8 karakter">
+    </label>
+  </div>
+
+  <div class="field">
+    <span class="label-text">Konfirmasi Password</span>
+    <label class="input">
+      <i data-lucide="lock" class="w-4 h-4 text-base-content/40"></i>
+      <input type="password" name="password_confirm" required minlength="8" maxlength="64"
+             autocomplete="new-password" placeholder="Ulangi password">
+    </label>
+  </div>
+
+  <button type="submit" class="btn btn-primary w-full mt-2">
+    <i data-lucide="user-plus"></i> Daftar
+  </button>
+</form>
+
+<p class="text-sm text-center mt-6">Sudah punya akun? <a href="/login" class="link">Masuk</a></p>
+<p class="hint mt-4 text-center">Alat bantu screening — bukan pengganti diagnosis medis.</p>
+{{end}}

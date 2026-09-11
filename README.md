@@ -230,7 +230,7 @@ mysql -u root drml < internal/database/migration/schema.sql
 
 ```bash
 cp .env.example .env    # then edit DB_* and JWT_SECRET
-go run ./cmd/seed -username admin -password 'ChangeMe123'
+go run ./cmd/seed -username admin -password 'ChangeMe123' -email admin@example.com
 go run ./cmd/server
 ```
 
@@ -282,6 +282,9 @@ there is no client-side data fetch and no chart JSON endpoint.
 | `STORAGE_DRIVER` | `local` | or `r2` |
 | `STORAGE_KEEP_SOURCE_PDF` | `false` | keep the uploaded report too; ~15 MB per screening against ~1 MB for the imagery |
 | `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | — | required when driver is `r2` |
+| `SMTP_HOST` / `SMTP_PORT` | — / `587` | outgoing mail for password-reset links. Unset ⇒ forgot-password is off in production and messages are logged in development. `465` is implicit TLS, any other port STARTTLS |
+| `SMTP_USERNAME` / `SMTP_PASSWORD` | — | only ever sent over TLS; a server without STARTTLS is refused |
+| `SMTP_FROM` / `SMTP_FROM_NAME` | — / `DRML` | sender; `SMTP_FROM` is required when `SMTP_HOST` is set. Links are built from `APP_URL` |
 
 Scan rows store an opaque storage **key**, never a URL, so moving to R2 is a
 config change rather than a data migration. R2 objects stay private and are
@@ -293,13 +296,30 @@ served through short-lived presigned URLs.
 
 | Role | Sees | Can |
 |---|---|---|
-| Clinician (`role=1`) | only their own scans | upload, view, delete own |
+| User (`role=1`) | only their own scans | upload, view, delete own |
 | Administrator (`role=2`) | all scans | + manage users |
 
 Scoping is enforced **in SQL** — every scan query takes `(all_scans, created_by)`
 — so a clinician cannot receive another clinician's rows even if a handler is
 wrong. Requesting another user's scan returns `404`, not `403`, so the response
 does not confirm the row exists.
+
+Anyone can also create their own account at **`/register`**, once an
+administrator opens registration at **`/admin/settings`**. It is closed by
+default, and `/register` returns `404` while it is. A self-registered account is
+always a User, is active immediately (the registrant is signed straight
+in), and has a NULL `created_by`. Sign-ups are rate-limited to 5 per hour per IP.
+
+Every account has an email address, unique case-insensitively, required at
+`/register`, in the administrator's user form and by `seed -email`. It is where
+**`/forgot-password`** sends a reset link, valid for 60 minutes, when the address
+belongs to an unsuspended account. The reply is the same either way, and the
+lookup and send run after the response is written, so neither the page nor its
+timing reveals which addresses are registered. The link is a stateless HMAC
+token bound to the account's current password hash, so it works once: setting a
+new password by any route invalidates every outstanding link. Requests are
+limited to 5 per hour per IP. Without `SMTP_HOST` the feature is off in
+production and its pages return `404`.
 
 ---
 
@@ -465,7 +485,7 @@ FLUSH PRIVILEGES;
 SQL
 
 mysql -h <db-host> -u drml -p drml < /opt/drml/src/internal/database/migration/schema.sql
-cd /opt/drml && sudo -u drml ./bin/seed -username admin -password 'ChangeMe123'
+cd /opt/drml && sudo -u drml ./bin/seed -username admin -password 'ChangeMe123' -email admin@example.com
 ```
 
 The `cd` is load-bearing: `config.Load()` reads `.env` relative to the working
@@ -484,6 +504,14 @@ That one adds PDF report input (`eye`, `source_kind`, `source_ref`,
 `source_key`). Existing
 rows become `source_kind = 'image'` with a NULL eye, which is exactly what they
 are. See [step 15](#15-updating) for where a migration belongs in a release.
+
+`2026-09-11-user-email-required.sql` makes `email` mandatory and unique. Order
+matters here: **backfill, migrate, then deploy**. First give every account
+without an email, or sharing one, an address of its own (the file's header has
+the queries that find them); then apply the file; then deploy the new binary.
+The new binary must not run before the backfill — it reads `email` as a
+non-nullable string, so one NULL breaks that user's login and the admin user
+list.
 
 There is no migration runner and no schema-version table: re-applying a
 migration fails with `Duplicate column name` rather than passing silently, so a
@@ -785,6 +813,12 @@ patient: its eyes are still screened sequentially through the single inference
 slot, so a two-eye report takes roughly twice as long as an image — measured at
 1.4–1.7 s end to end, including the two streaming passes over the document.
 
+**A password reset does not end existing sessions.** Sessions are stateless
+JWTs checked only against their signature, so one issued before a reset stays
+valid until it expires (`JWT_EXPIRATION_HOURS`, 24 h by default); suspension
+has the same gap. Closing it needs a per-request lookup of a
+`password_changed_at` or session version, which is a separate change.
+
 ---
 
 ## Testing
@@ -831,6 +865,11 @@ Notable tests:
   reach the request path with no restart, and the flag is read by every upload
   while an administrator may flip it from another goroutine, so it is an
   `atomic.Bool` and the test runs under `-race`.
+- `TestResetTokenDiesWithPasswordChange` — a reset link is single-use without a
+  table because its MAC covers the password hash; the test pins that down, and
+  its neighbours cover expiry, an email change and every tampered field.
+- `TestBuildMessageRejectsHeaderInjection` — a CR/LF in the recipient or subject
+  must not become an extra header (`Bcc:`) in outgoing mail.
 
 ---
 

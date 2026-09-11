@@ -1,7 +1,7 @@
 {{define "actions"}}
 <div class="join">
   <a href="/admin/users" class="join-item btn btn-sm {{if eq .RoleFilter ""}}btn-active{{end}}">Semua</a>
-  <a href="/admin/users?role=1" class="join-item btn btn-sm {{if eq .RoleFilter "1"}}btn-active{{end}}">Klinisi</a>
+  <a href="/admin/users?role=1" class="join-item btn btn-sm {{if eq .RoleFilter "1"}}btn-active{{end}}">User</a>
   <a href="/admin/users?role=2" class="join-item btn btn-sm {{if eq .RoleFilter "2"}}btn-active{{end}}">Administrator</a>
 </div>
 <a href="/admin/users/new" class="btn btn-primary btn-sm">

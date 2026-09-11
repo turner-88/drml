@@ -2,7 +2,6 @@ package handler
 
 import (
 	"database/sql"
-	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -84,7 +83,7 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	role, _ := strconv.Atoi(r.FormValue("role"))
 
 	// Role is echoed back so a failed submission re-renders with the operator's
-	// choice still selected rather than silently resetting to Klinisi.
+	// choice still selected rather than silently resetting to User.
 	form := map[string]any{
 		"Title":    "Tambah Pengguna",
 		"Username": username, "Name": name, "Email": email, "Role": role,
@@ -92,6 +91,11 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	if len(username) < 3 {
 		form["Error"] = "Username minimal 3 karakter."
+		h.render(w, r, "user_form", form)
+		return
+	}
+	if msg := validateEmail(email); msg != "" {
+		form["Error"] = msg
 		h.render(w, r, "user_form", form)
 		return
 	}
@@ -106,13 +110,8 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.store.GetUserByUsername(r.Context(), username); err == nil {
-		form["Error"] = "Username sudah digunakan oleh akun lain."
-		h.render(w, r, "user_form", form)
-		return
-	} else if !errors.Is(err, sql.ErrNoRows) {
-		log.Printf("create user lookup: %v", err)
-		form["Error"] = "Gagal memeriksa ketersediaan username."
+	if msg := h.identityTaken(r.Context(), username, email); msg != "" {
+		form["Error"] = msg
 		h.render(w, r, "user_form", form)
 		return
 	}
@@ -128,7 +127,7 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	now := int32(time.Now().Unix())
 	if _, err := h.store.CreateUser(r.Context(), db.CreateUserParams{
 		Name:               store.NullString(name),
-		Email:              store.NullString(email),
+		Email:              email,
 		Username:           username,
 		PasswordHash:       string(hash),
 		Role:               int32(role),
@@ -141,6 +140,9 @@ func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		log.Printf("create user: %v", err)
 		form["Error"] = "Gagal membuat akun pengguna."
+		if msg := duplicateMessage(err); msg != "" {
+			form["Error"] = msg
+		}
 		h.render(w, r, "user_form", form)
 		return
 	}

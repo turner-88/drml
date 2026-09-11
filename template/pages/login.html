@@ -8,7 +8,18 @@
 </div>
 
 <h1 class="text-2xl font-bold">Masuk</h1>
+{{if .RegistrationOpen}}
+<p class="page-subtitle mb-6">Silakan masuk menggunakan akun DRML Anda.</p>
+{{else}}
 <p class="page-subtitle mb-6">Silakan masuk menggunakan akun yang telah didaftarkan oleh administrator.</p>
+{{end}}
+
+{{if .Notice}}
+<div role="alert" class="alert alert-success mb-4">
+  <i data-lucide="check-circle"></i>
+  <span>{{.Notice}}</span>
+</div>
+{{end}}
 
 {{if .Error}}
 <div role="alert" class="alert alert-error mb-4">
@@ -36,6 +47,9 @@
       <input type="password" name="password" required autocomplete="current-password"
              placeholder="Masukkan password">
     </label>
+    {{if .ForgotEnabled}}
+    <a href="/forgot-password" class="link text-sm self-end">Lupa password?</a>
+    {{end}}
   </div>
 
   <button type="submit" class="btn btn-primary w-full mt-2">
@@ -43,5 +57,8 @@
   </button>
 </form>
 
-<p class="hint mt-6 text-center">Alat bantu screening — bukan pengganti diagnosis medis.</p>
+{{if .RegistrationOpen}}
+<p class="text-sm text-center mt-6">Belum punya akun? <a href="/register" class="link">Daftar akun baru</a></p>
+{{end}}
+<p class="hint {{if .RegistrationOpen}}mt-4{{else}}mt-6{{end}} text-center">Alat bantu screening — bukan pengganti diagnosis medis.</p>
 {{end}}

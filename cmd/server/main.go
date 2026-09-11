@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/remorac/drml/internal/database/store"
 	"github.com/remorac/drml/internal/infer"
 	"github.com/remorac/drml/internal/shared/config"
+	"github.com/remorac/drml/internal/shared/mailer"
 	sharedmw "github.com/remorac/drml/internal/shared/middleware"
 	"github.com/remorac/drml/internal/storage"
 )
@@ -85,7 +87,7 @@ func main() {
 		KeepSourcePDF: cfg.Storage.KeepSourcePDF,
 	})
 
-	h, err := handler.New(cfg, st, scans, engine, blobs, assets.TemplateFS)
+	h, err := handler.New(cfg, st, scans, engine, blobs, newMailer(cfg), assets.TemplateFS)
 	if err != nil {
 		log.Fatalf("FATAL: parse templates: %v", err)
 	}
@@ -158,6 +160,38 @@ func main() {
 		log.Fatalf("FATAL: forced shutdown: %v", err)
 	}
 	log.Println("Server exited gracefully")
+}
+
+// newMailer builds the outgoing-mail backend; nil switches forgot-password off.
+//
+// Without a relay, development logs messages so the reset flow can still be
+// exercised. Production gets nil instead: logging there would put live reset
+// links in the journal.
+func newMailer(cfg *config.Config) mailer.Mailer {
+	if cfg.SMTP.Host == "" {
+		if cfg.IsProduction() {
+			log.Println("Mail: SMTP_HOST unset, password reset disabled")
+			return nil
+		}
+		log.Println("Mail: SMTP_HOST unset, logging messages instead of sending (development only)")
+		return mailer.Log{}
+	}
+	m, err := mailer.NewSMTP(mailer.Config{
+		Host:     cfg.SMTP.Host,
+		Port:     cfg.SMTP.Port,
+		Username: cfg.SMTP.Username,
+		Password: cfg.SMTP.Password,
+		From:     cfg.SMTP.From,
+		FromName: cfg.SMTP.FromName,
+	})
+	if err != nil {
+		log.Fatalf("FATAL: mail: %v", err)
+	}
+	if cfg.IsProduction() && strings.Contains(cfg.AppURL, "localhost") {
+		log.Printf("WARNING: APP_URL is %q; password-reset links will not work outside this machine", cfg.AppURL)
+	}
+	log.Printf("Mail: SMTP relay %s:%d", cfg.SMTP.Host, cfg.SMTP.Port)
+	return m
 }
 
 // newStorage builds the configured blob backend. The second return value is

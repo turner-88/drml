@@ -11,7 +11,7 @@ DROP TABLE IF EXISTS `user`;
 CREATE TABLE `user` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `name` varchar(100) DEFAULT NULL,
-  `email` varchar(100) DEFAULT NULL,
+  `email` varchar(100) NOT NULL COMMENT 'unique; where password-reset links are sent',
   `username` varchar(50) NOT NULL COMMENT 'letter: required, number: optional, symbol: forbidden',
   `password_hash` varchar(255) NOT NULL,
   `role` int(11) NOT NULL DEFAULT 1 COMMENT '1 = clinician, 2 = administrator',
@@ -24,6 +24,7 @@ CREATE TABLE `user` (
   `updated_by` int(11) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_user_username` (`username`),
+  UNIQUE KEY `uq_user_email` (`email`),
   KEY `idx_user_role` (`role`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 

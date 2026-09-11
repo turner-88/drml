@@ -1,0 +1,41 @@
+-- Makes user.email mandatory and unique, for self-service password reset.
+--
+-- The email is where a reset link is sent and how the forgot-password form finds
+-- the account, so every account needs one and no two may share one. The
+-- column's utf8mb4_general_ci collation makes the unique key case-insensitive:
+-- Budi@x.com and budi@x.com collide, as they would at the mailbox.
+--
+-- The new binary cannot run against a NULL email at all: it reads the column
+-- into a plain string, and database/sql refuses to scan NULL into one, so a
+-- single unbackfilled account breaks that user's login and the whole admin user
+-- list. The order is therefore:
+--
+--   1. backfill existing accounts until both checks below return no rows
+--      (harmless to the running release, whose column is still nullable);
+--   2. apply this file;
+--   3. deploy the new binary straight after.
+--
+-- Between 2 and 3 the old release fails to create an account left without an
+-- email; it has no other trouble with the NOT NULL column.
+--
+--   -- accounts with no email
+--   SELECT id, username FROM `user` WHERE email IS NULL OR email = '';
+--
+--   -- addresses held by more than one account (case-insensitive)
+--   SELECT email, GROUP_CONCAT(username) FROM `user`
+--   WHERE email IS NOT NULL AND email <> ''
+--   GROUP BY email HAVING COUNT(*) > 1;
+--
+--   -- fix each one
+--   UPDATE `user` SET email = 'nama@domain.com' WHERE id = <id>;
+--
+-- If a row is missed, the ALTER fails and changes nothing: a NULL gives
+-- "Invalid use of NULL value" under the default strict sql_mode, a duplicate
+-- gives "Duplicate entry". Applying this twice fails with "Duplicate key name",
+-- which is the intended outcome — there is no migration runner to track state.
+--
+--   mysql -h <db-host> -u drml -p drml < 2026-09-11-user-email-required.sql
+
+ALTER TABLE `user`
+  MODIFY COLUMN `email` varchar(100) NOT NULL,
+  ADD UNIQUE KEY `uq_user_email` (`email`);

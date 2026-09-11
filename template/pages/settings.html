@@ -92,5 +92,40 @@
       </div>
     </div>
   </form>
+
+  <form method="post" action="/admin/settings/registration" class="mt-6">
+    <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Registrasi Mandiri</h2>
+        <span class="pill {{if .RegistrationEnabled}}pill-success{{else}}pill-muted{{end}}">
+          <span class="dot"></span>{{if .RegistrationEnabled}}Dibuka{{else}}Ditutup{{end}}
+        </span>
+      </div>
+
+      <div class="card-body gap-4">
+        <p class="text-sm text-base-content/70">
+          Mengizinkan pengunjung membuat akun sendiri melalui halaman <code>/register</code>.
+          Akun yang dibuat selalu berperan User, langsung aktif, dan hanya dapat melihat data pemeriksaannya sendiri.
+        </p>
+
+        <label class="switch">
+          <input type="checkbox" name="registration_enabled" {{if .RegistrationEnabled}}checked{{end}}>
+          <span class="track"></span>
+          <span class="label-text">Buka pendaftaran akun User untuk publik</span>
+        </label>
+
+        <div role="alert" class="alert alert-warning">
+          <i data-lucide="alert-triangle"></i>
+          <div>Selama dibuka, <strong>siapa pun yang dapat mengakses aplikasi ini dapat membuat akun dan mengunggah gambar</strong>
+            untuk dianalisis. Akun yang tidak dikenal dapat ditangguhkan dari halaman Manajemen Pengguna.</div>
+        </div>
+      </div>
+
+      <div class="card-foot">
+        <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> Simpan Pengaturan</button>
+      </div>
+    </div>
+  </form>
 </div>
 {{end}}

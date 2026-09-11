@@ -109,7 +109,7 @@
     .lg\:drawer-open { @apply flex; }
     .lg\:drawer-open .drawer-content { @apply flex-1 min-w-0; }
     .lg\:drawer-open .drawer-side {
-      @apply static visible z-auto w-64 shrink-0 self-stretch;
+      @apply sticky top-0 visible z-auto w-64 h-screen shrink-0 self-start;
       order: -1;
     }
     .lg\:drawer-open .drawer-side > aside { @apply translate-x-0; }
@@ -126,7 +126,7 @@
     background: linear-gradient(140deg, #0ea5e9, #0369a1);
   }
   .brand-mark svg { @apply w-[18px] h-[18px]; }
-  .nav-scroll { @apply flex-1 overflow-y-auto py-3; }
+  .nav-scroll { @apply flex-1 min-h-0 overflow-y-auto py-3; }
   .nav-section { @apply px-3 mb-1; }
   .nav-label {
     @apply px-2 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.09em];
@@ -299,6 +299,7 @@
   .label-text { @apply text-[13px] font-medium text-base-content/80; }
   .label-alt { @apply text-xs text-base-content/45 font-normal; }
   .hint { @apply text-xs text-base-content/50; }
+  .link { @apply font-semibold text-primary hover:underline; }
 
   .input {
     @apply h-10 w-full rounded-lg border border-base-300 bg-base-100

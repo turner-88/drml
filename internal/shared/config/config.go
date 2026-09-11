@@ -18,6 +18,7 @@ type Config struct {
 	ORT            ORTConfig
 	Storage        StorageConfig
 	PasswordPolicy PasswordPolicyConfig
+	SMTP           SMTPConfig
 	Env            string
 	AppURL         string
 	PageSize       int
@@ -135,6 +136,20 @@ type PasswordPolicyConfig struct {
 	BreachCheckEnabled bool
 }
 
+// SMTPConfig configures outgoing mail, which carries password-reset links.
+//
+// With Host empty there is no relay: forgot-password is switched off in
+// production, and in development messages are written to the log instead.
+type SMTPConfig struct {
+	Host string
+	// Port 465 is implicit TLS; any other port is upgraded with STARTTLS.
+	Port     int
+	Username string
+	Password string
+	From     string
+	FromName string
+}
+
 // Load reads configuration from environment variables.
 func Load() *Config {
 	_ = godotenv.Load()
@@ -186,6 +201,14 @@ func Load() *Config {
 			BlacklistEnabled:   getEnvBool("PASSWORD_BLACKLIST_ENABLED", true),
 			BreachCheckEnabled: getEnvBool("PASSWORD_BREACH_CHECK", false),
 		},
+		SMTP: SMTPConfig{
+			Host:     getEnv("SMTP_HOST", ""),
+			Port:     getEnvInt("SMTP_PORT", 587),
+			Username: getEnv("SMTP_USERNAME", ""),
+			Password: getEnv("SMTP_PASSWORD", ""),
+			From:     getEnv("SMTP_FROM", ""),
+			FromName: getEnv("SMTP_FROM_NAME", "DRML"),
+		},
 		Env:      getEnv("ENV", "development"),
 		AppURL:   getEnv("APP_URL", "http://localhost:"+getEnv("SERVER_PORT", "8080")),
 		PageSize: getEnvInt("APP_PAGESIZE", 20),
@@ -200,6 +223,9 @@ func Load() *Config {
 		if cfg.DB.Password == "" {
 			log.Fatal("FATAL: DB_PASSWORD must be set in production")
 		}
+	}
+	if cfg.SMTP.Host != "" && cfg.SMTP.From == "" {
+		log.Fatal("FATAL: SMTP_FROM must be set when SMTP_HOST is")
 	}
 	if cfg.Storage.Driver == "r2" {
 		for k, v := range map[string]string{

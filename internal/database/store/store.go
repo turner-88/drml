@@ -47,6 +47,11 @@ func (s *Store) CreateScan(ctx context.Context, arg db.CreateScanParams) (int32,
 // to be changeable without a redeploy.
 const SettingGateEnabled = "gate.enabled"
 
+// SettingRegistrationEnabled opens /register to the public. Read with a false
+// default: an open sign-up form on a clinical tool has to be a deliberate
+// administrator decision, never a side effect of deploying this feature.
+const SettingRegistrationEnabled = "registration.enabled"
+
 // GetBoolSetting reads a stored flag, falling back to def when no row exists.
 //
 // An absent row means nobody has expressed a preference, which is not the same

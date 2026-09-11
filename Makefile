@@ -62,13 +62,13 @@ db-shell: ## Open a MySQL shell on the app database
 	@$(ENVRUN) scripts/db.sh shell
 
 
-seed: ## Create the first administrator (SEED_PASSWORD required)
-	@if [ -z "$$SEED_PASSWORD" ]; then \
-		echo "error: SEED_PASSWORD is required, e.g."; \
-		echo "       SEED_PASSWORD='ChangeMe123' make seed"; \
+seed: ## Create the first administrator (SEED_PASSWORD and SEED_EMAIL required)
+	@if [ -z "$$SEED_PASSWORD" ] || [ -z "$$SEED_EMAIL" ]; then \
+		echo "error: SEED_PASSWORD and SEED_EMAIL are required, e.g."; \
+		echo "       SEED_PASSWORD='ChangeMe123' SEED_EMAIL=admin@example.com make seed"; \
 		exit 1; \
 	fi
-	go run ./cmd/seed -username $${SEED_USER:-admin} -password "$$SEED_PASSWORD"
+	go run ./cmd/seed -username $${SEED_USER:-admin} -password "$$SEED_PASSWORD" -email "$$SEED_EMAIL"
 
 export: ## Re-export the ONNX model from HuggingFace
 	cd model && ./.venv/bin/python export.py

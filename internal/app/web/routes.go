@@ -26,6 +26,28 @@ func Routes(cfg *config.Config, h *handler.Handler) chi.Router {
 		RedirectURL: "/login?blocked=1",
 	})
 
+	// Separate budget for sign-ups: it bounds bulk account creation and
+	// username probing from one address without eating into login attempts.
+	registerRL := mw.NewLoginRateLimiter(mw.RateLimiterConfig{
+		MaxAttempts: 5,
+		Window:      time.Hour,
+		RedirectURL: "/register?blocked=1",
+	})
+
+	// Each forgot-password request can send an email, so this budget also
+	// bounds how much mail one address can aim at someone else's inbox.
+	forgotRL := mw.NewLoginRateLimiter(mw.RateLimiterConfig{
+		MaxAttempts: 5,
+		Window:      time.Hour,
+		RedirectURL: "/forgot-password?blocked=1",
+	})
+	// Tokens are unguessable; this only bounds bcrypt work per address.
+	resetRL := mw.NewLoginRateLimiter(mw.RateLimiterConfig{
+		MaxAttempts: 10,
+		Window:      time.Hour,
+		RedirectURL: "/forgot-password?blocked=1",
+	})
+
 	csrf := mw.CSRFMiddleware(mw.CSRFConfig{
 		CookieName: "drml_csrf",
 		FieldName:  "_csrf",
@@ -50,6 +72,14 @@ func Routes(cfg *config.Config, h *handler.Handler) chi.Router {
 		r.Get("/login", h.LoginPage)
 		r.With(loginRL).Post("/login", h.Login)
 		r.Get("/logout", h.Logout)
+		// 404 unless an administrator has enabled public registration.
+		r.Get("/register", h.RegisterPage)
+		r.With(registerRL).Post("/register", h.Register)
+		// 404 unless outgoing mail is configured.
+		r.Get("/forgot-password", h.ForgotPasswordPage)
+		r.With(forgotRL).Post("/forgot-password", h.ForgotPassword)
+		r.Get("/reset-password", h.ResetPasswordPage)
+		r.With(resetRL).Post("/reset-password", h.ResetPassword)
 
 		// Authenticated — clinician and admin
 		r.Group(func(r chi.Router) {
@@ -77,6 +107,7 @@ func Routes(cfg *config.Config, h *handler.Handler) chi.Router {
 
 				r.Get("/admin/settings", h.SettingsPage)
 				r.Post("/admin/settings", h.UpdateSettings)
+				r.Post("/admin/settings/registration", h.UpdateRegistrationSetting)
 			})
 		})
 	})

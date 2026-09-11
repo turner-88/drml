@@ -32,13 +32,13 @@
 
         <div class="field">
           <span class="label-text">Email</span>
-          <input type="email" name="email" value="{{.Email}}" maxlength="100" class="input" placeholder="contoh@domain.com">
+          <input type="email" name="email" value="{{.Email}}" required maxlength="100" class="input" placeholder="contoh@domain.com">
         </div>
 
         <div class="field">
           <span class="label-text">Peran (Role)</span>
           <select name="role" class="select">
-            <option value="1" {{if eq .Role 1}}selected{{end}}>Klinisi — hanya melihat data pemeriksaannya sendiri</option>
+            <option value="1" {{if eq .Role 1}}selected{{end}}>User —hanya melihat data pemeriksaannya sendiri</option>
             <option value="2" {{if eq .Role 2}}selected{{end}}>Administrator — akses penuh untuk melihat semua data &amp; mengelola pengguna</option>
           </select>
         </div>

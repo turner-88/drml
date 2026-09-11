@@ -24,7 +24,7 @@ func RoleLabel(r UserRole) string {
 	case UserRoleAdmin:
 		return "Administrator"
 	case UserRoleClinician:
-		return "Klinisi"
+		return "User"
 	default:
 		return "Tidak diketahui"
 	}
