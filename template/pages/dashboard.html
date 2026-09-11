@@ -1,55 +1,57 @@
-{{define "actions"}}
-<a href="/scans/new" class="btn btn-primary btn-sm">
-  <i data-lucide="scan-eye"></i> Pemeriksaan Baru
-</a>
-{{end}}
-
 {{define "content"}}
-<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-  <div class="stat-card">
-    <div class="stat-ic" style="background:color-mix(in srgb,var(--color-primary) 12%,white);color:var(--color-primary)">
+<section class="hero">
+  <div class="hero-text">
+    <p class="hero-eyebrow">Halo, {{.AuthUser.Username}}</p>
+    <h1 class="page-title">Selamat datang di DRML</h1>
+    <p class="hero-lead">Screening retinopati diabetik berbasis AI dari foto fundus &mdash;
+      unggah foto, dapatkan derajat keparahan beserta peta perhatian model dalam hitungan detik.</p>
+  </div>
+  <div class="hero-art">{{template "retina-illustration"}}</div>
+</section>
+
+<nav class="grid gap-4 mt-4 sm:grid-cols-2 {{if .IsAdmin}}xl:grid-cols-4{{else}}xl:grid-cols-3{{end}} no-print" aria-label="Menu pintasan">
+  <a href="/scans/new" class="shortcut">
+    <span class="stat-ic" style="background:color-mix(in srgb,var(--color-primary) 12%,white);color:var(--color-primary)">
       <i data-lucide="scan-eye"></i>
-    </div>
-    <div class="min-w-0">
-      <div class="stat-num">{{.Summary.TotalScans}}</div>
-      <div class="stat-lbl">Total Pemeriksaan</div>
-      <div class="stat-sub">Periode sejak {{.From}}</div>
-    </div>
-  </div>
+    </span>
+    <span class="min-w-0">
+      <span class="shortcut-title">Pemeriksaan Baru</span>
+      <span class="shortcut-desc">Unggah foto fundus atau PDF</span>
+    </span>
+  </a>
 
-  <div class="stat-card">
-    <div class="stat-ic" style="background:color-mix(in srgb,var(--color-warning) 14%,white);color:var(--color-warning)">
-      <i data-lucide="alert-triangle"></i>
-    </div>
-    <div class="min-w-0">
-      <div class="stat-num">{{pct .ReferableRate}}</div>
-      <div class="stat-lbl">Perlu Rujukan</div>
-      <div class="stat-sub">{{.ReferableCount}} kasus derajat &ge; 2</div>
-    </div>
-  </div>
+  <a href="/scans" class="shortcut">
+    <span class="stat-ic" style="background:color-mix(in srgb,var(--color-secondary) 14%,white);color:var(--color-secondary)">
+      <i data-lucide="history"></i>
+    </span>
+    <span class="min-w-0">
+      <span class="shortcut-title">Riwayat</span>
+      <span class="shortcut-desc">Telusuri hasil pemeriksaan</span>
+    </span>
+  </a>
 
-  <div class="stat-card">
-    <div class="stat-ic" style="background:color-mix(in srgb,var(--color-secondary) 14%,white);color:var(--color-secondary)">
-      <i data-lucide="gauge"></i>
-    </div>
-    <div class="min-w-0">
-      <div class="stat-num">{{pct .MeanConfidence}}</div>
-      <div class="stat-lbl">Rata-rata Confidence</div>
-      <div class="stat-sub">{{.MeanInferenceMs}} ms per foto</div>
-    </div>
-  </div>
+  <a href="/analytics" class="shortcut">
+    <span class="stat-ic" style="background:color-mix(in srgb,var(--color-accent) 14%,white);color:var(--color-accent)">
+      <i data-lucide="bar-chart-3"></i>
+    </span>
+    <span class="min-w-0">
+      <span class="shortcut-title">Analitik</span>
+      <span class="shortcut-desc">Ringkasan dan tren screening</span>
+    </span>
+  </a>
 
-  <div class="stat-card">
-    <div class="stat-ic" style="background:color-mix(in srgb,var(--color-error) 12%,white);color:var(--color-error)">
-      <i data-lucide="help-circle"></i>
-    </div>
-    <div class="min-w-0">
-      <div class="stat-num">{{.LowConfidenceCount}}</div>
-      <div class="stat-lbl">Confidence Rendah</div>
-      <div class="stat-sub">Perlu peninjauan manual</div>
-    </div>
-  </div>
-</div>
+  {{if .IsAdmin}}
+  <a href="/admin/settings" class="shortcut">
+    <span class="stat-ic" style="background:color-mix(in srgb,var(--color-neutral) 10%,white);color:var(--color-neutral)">
+      <i data-lucide="settings"></i>
+    </span>
+    <span class="min-w-0">
+      <span class="shortcut-title">Pengaturan</span>
+      <span class="shortcut-desc">Filter foto dan registrasi pengguna</span>
+    </span>
+  </a>
+  {{end}}
+</nav>
 
 <div class="card mt-4">
   <div class="card-header">

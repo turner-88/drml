@@ -226,6 +226,45 @@
   .stat-lbl { @apply text-sm text-base-content/60 mt-1; }
   .stat-sub { @apply text-xs text-base-content/45 mt-0.5; }
 
+  /* ---- Dashboard hero + shortcuts ---------------------------------- */
+  .hero {
+    @apply relative isolate overflow-hidden flex items-center justify-between gap-6
+           rounded-2xl border border-base-300 p-6 sm:p-8;
+    background:
+      radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--color-secondary) 12%, white) 0%, transparent 55%),
+      linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 10%, white), var(--color-base-100));
+  }
+  .hero-text { @apply min-w-0 max-w-xl; }
+  .hero-eyebrow { @apply text-sm font-medium text-primary mb-1; }
+  .hero-lead { @apply text-sm sm:text-[15px] mt-2 text-base-content/65 leading-relaxed; }
+  /* On phones there is no room beside the text, so the retina becomes a
+     faded watermark behind it; from sm up it sits alongside in full colour. */
+  .hero-art {
+    @apply absolute -right-16 top-1/2 -translate-y-1/2 w-60 -z-10 pointer-events-none
+           sm:static sm:translate-y-0 sm:z-auto sm:w-40 lg:w-52 shrink-0;
+    color: var(--color-ink);
+    opacity: .18;
+    filter: saturate(.6);
+    mask-image: radial-gradient(circle, #000 45%, transparent 72%);
+  }
+  @media (width >= 40rem) {
+    .hero-art { opacity: 1; filter: none; mask-image: none; }
+  }
+  .hero-art svg { @apply block w-full h-auto; }
+
+  .shortcut {
+    @apply flex items-center gap-4 rounded-2xl border border-base-300 bg-base-100 p-5
+           transition duration-150 hover:-translate-y-0.5 focus-visible:outline-none;
+    box-shadow: 0 1px 2px rgba(15, 38, 52, 0.04);
+  }
+  .shortcut:hover, .shortcut:focus-visible {
+    border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-base-300));
+    box-shadow: 0 6px 16px -6px rgba(15, 38, 52, 0.14);
+  }
+  .shortcut:focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 22%, transparent); }
+  .shortcut-title { @apply block font-semibold; color: var(--color-ink); }
+  .shortcut-desc { @apply block text-xs text-base-content/55 mt-0.5; }
+
   .stats { @apply grid rounded-xl border border-base-300 bg-base-100 divide-y divide-base-300 sm:grid-cols-2 sm:divide-y-0 sm:divide-x; }
   .stat { @apply px-5 py-4; }
   .stat-title { @apply text-xs uppercase tracking-wide text-base-content/50; }

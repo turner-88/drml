@@ -8,6 +8,52 @@
 {{end}}
 
 {{define "content"}}
+<div class="grid gap-4 mb-4 sm:grid-cols-2 xl:grid-cols-4">
+  <div class="stat-card">
+    <div class="stat-ic" style="background:color-mix(in srgb,var(--color-primary) 12%,white);color:var(--color-primary)">
+      <i data-lucide="scan-eye"></i>
+    </div>
+    <div class="min-w-0">
+      <div class="stat-num">{{.Summary.TotalScans}}</div>
+      <div class="stat-lbl">Total Pemeriksaan</div>
+      <div class="stat-sub">Dalam rentang tanggal terpilih</div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-ic" style="background:color-mix(in srgb,var(--color-warning) 14%,white);color:var(--color-warning)">
+      <i data-lucide="alert-triangle"></i>
+    </div>
+    <div class="min-w-0">
+      <div class="stat-num">{{pct .ReferableRate}}</div>
+      <div class="stat-lbl">Perlu Rujukan</div>
+      <div class="stat-sub">{{.ReferableCount}} kasus derajat &ge; 2</div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-ic" style="background:color-mix(in srgb,var(--color-secondary) 14%,white);color:var(--color-secondary)">
+      <i data-lucide="gauge"></i>
+    </div>
+    <div class="min-w-0">
+      <div class="stat-num">{{pct .MeanConfidence}}</div>
+      <div class="stat-lbl">Rata-rata Confidence</div>
+      <div class="stat-sub">{{.MeanInferenceMs}} ms per foto</div>
+    </div>
+  </div>
+
+  <div class="stat-card">
+    <div class="stat-ic" style="background:color-mix(in srgb,var(--color-error) 12%,white);color:var(--color-error)">
+      <i data-lucide="help-circle"></i>
+    </div>
+    <div class="min-w-0">
+      <div class="stat-num">{{.LowConfidenceCount}}</div>
+      <div class="stat-lbl">Confidence Rendah</div>
+      <div class="stat-sub">Perlu peninjauan manual</div>
+    </div>
+  </div>
+</div>
+
 <div class="grid gap-4 lg:grid-cols-2">
   <div class="card">
     <div class="card-header">

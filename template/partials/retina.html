@@ -1,0 +1,53 @@
+{{define "retina-illustration"}}
+{{/* A stylised fundus photograph: orange-red retina, pale optic disc on the
+     nasal side, vessel arcades branching out of it, and the darker macula
+     temporal to the disc. Decorative only, so hidden from assistive tech. */}}
+<svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+  <defs>
+    <radialGradient id="rt-fundus" cx="50%" cy="48%" r="52%">
+      <stop offset="0" stop-color="#f59e5b"/>
+      <stop offset=".55" stop-color="#e0703a"/>
+      <stop offset=".85" stop-color="#b8462a"/>
+      <stop offset="1" stop-color="#6b1f16"/>
+    </radialGradient>
+    <radialGradient id="rt-disc" cx="45%" cy="45%" r="55%">
+      <stop offset="0" stop-color="#fffbe8"/>
+      <stop offset=".6" stop-color="#fde6a4"/>
+      <stop offset="1" stop-color="#f3b96a"/>
+    </radialGradient>
+    <radialGradient id="rt-macula" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#8a2a18" stop-opacity=".75"/>
+      <stop offset="1" stop-color="#b8462a" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="rt-clip"><circle cx="120" cy="120" r="104"/></clipPath>
+  </defs>
+
+  <circle cx="120" cy="120" r="116" fill="none" stroke="currentColor" stroke-opacity=".12" stroke-width="4"/>
+  <circle cx="120" cy="120" r="104" fill="url(#rt-fundus)"/>
+
+  <g clip-path="url(#rt-clip)" fill="none" stroke-linecap="round">
+    <circle cx="96" cy="126" r="26" fill="url(#rt-macula)" stroke="none"/>
+    <!-- arteries (lighter) -->
+    <g stroke="#c2412b" stroke-width="3.2">
+      <path d="M160 112 C140 84 108 70 60 72 C44 73 30 80 20 90"/>
+      <path d="M160 124 C140 154 108 170 62 168 C46 167 32 160 22 150"/>
+      <path d="M112 76 C104 60 96 48 84 34"/>
+      <path d="M110 164 C102 180 94 192 82 206"/>
+      <path d="M166 108 C176 80 186 62 200 46"/>
+      <path d="M166 130 C178 156 188 172 204 190"/>
+    </g>
+    <!-- veins (darker, wider) -->
+    <g stroke="#8f2317" stroke-width="4.2">
+      <path d="M156 116 C136 92 102 82 56 86 C40 88 28 96 18 106"/>
+      <path d="M156 122 C136 144 104 158 58 156 C42 155 28 148 18 138"/>
+      <path d="M100 84 C88 70 78 62 62 56"/>
+      <path d="M98 154 C86 168 76 176 60 184"/>
+      <path d="M170 116 C188 100 204 94 224 92"/>
+      <path d="M170 124 C188 140 204 146 224 150"/>
+    </g>
+  </g>
+
+  <circle cx="162" cy="118" r="15" fill="url(#rt-disc)"/>
+  <circle cx="164" cy="117" r="6" fill="#fffdf4" opacity=".8"/>
+</svg>
+{{end}}

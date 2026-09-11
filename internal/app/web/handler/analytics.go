@@ -46,8 +46,8 @@ func (w dateWindow) Days() int {
 	return int((w.ToDay.Sub(w.FromDay)+12*time.Hour)/(24*time.Hour)) + 1
 }
 
-// dateRange resolves the from/to filters shared by the dashboard and the
-// charts, always onto local-time day boundaries.
+// dateRange resolves the from/to filters shared by the analytics headline
+// numbers and charts, always onto local-time day boundaries.
 func dateRange(r *http.Request) dateWindow {
 	q := r.URL.Query()
 	fromDay, hasFrom := parseLocalDay(q.Get("from"))
@@ -106,23 +106,11 @@ func clampDay(t time.Time) time.Time {
 	return t
 }
 
-// Dashboard is the landing page: headline numbers plus the most recent scans.
+// Dashboard is the landing page: a welcome hero, shortcuts into the main
+// areas, and the most recent scans. The headline numbers live on Analitik,
+// next to the date filter that scopes them.
 func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	all, uid := scope(r)
-	win := dateRange(r)
-
-	summary, err := h.store.SummaryStats(r.Context(), db.SummaryStatsParams{
-		LowConfidence: store.NullFloat64(LowConfidenceThreshold),
-		AllScans:      all,
-		CreatedBy:     store.NullInt32(uid),
-		FromTs:        win.From,
-		ToTs:          win.To,
-	})
-	if err != nil {
-		log.Printf("dashboard summary: %v", err)
-		http.Error(w, "Gagal memuat ringkasan", http.StatusInternalServerError)
-		return
-	}
 
 	recent, err := h.store.RecentScans(r.Context(), db.RecentScansParams{
 		AllScans:  all,
@@ -135,6 +123,34 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.render(w, r, "dashboard", map[string]any{
+		"Title":  "Dashboard",
+		"Hero":   true,
+		"Recent": recent,
+	})
+}
+
+// AnalyticsPage renders the headline numbers and the charts. Every series is
+// computed here and shaped into presentation-ready percentages, so the
+// templates draw plain CSS bars with no arithmetic and the page needs no
+// charting library.
+func (h *Handler) AnalyticsPage(w http.ResponseWriter, r *http.Request) {
+	all, uid := scope(r)
+	win := dateRange(r)
+
+	summary, err := h.store.SummaryStats(r.Context(), db.SummaryStatsParams{
+		LowConfidence: store.NullFloat64(LowConfidenceThreshold),
+		AllScans:      all,
+		CreatedBy:     store.NullInt32(uid),
+		FromTs:        win.From,
+		ToTs:          win.To,
+	})
+	if err != nil {
+		log.Printf("analytics summary: %v", err)
+		http.Error(w, "Gagal memuat ringkasan", http.StatusInternalServerError)
+		return
+	}
+
 	// MySQL returns SUM()/AVG() as DECIMAL, which the driver hands back as
 	// []byte; toFloat normalizes every shape these can take.
 	referableCount := toFloat(summary.ReferableCount)
@@ -142,27 +158,6 @@ func (h *Handler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	if summary.TotalScans > 0 {
 		referableRate = referableCount / float64(summary.TotalScans)
 	}
-
-	h.render(w, r, "dashboard", map[string]any{
-		"Title":              "Dashboard",
-		"Summary":            summary,
-		"ReferableCount":     int64(referableCount),
-		"MeanConfidence":     toFloat(summary.MeanConfidence),
-		"LowConfidenceCount": int64(toFloat(summary.LowConfidenceCount)),
-		"MeanInferenceMs":    int64(toFloat(summary.MeanInferenceMs)),
-		"ReferableRate":      referableRate,
-		"Recent":             recent,
-		"From":               win.FromStr,
-		"To":                 win.ToStr,
-	})
-}
-
-// AnalyticsPage renders the charts. Every series is computed here and shaped
-// into presentation-ready percentages, so the templates draw plain CSS bars
-// with no arithmetic and the page needs no charting library.
-func (h *Handler) AnalyticsPage(w http.ResponseWriter, r *http.Request) {
-	all, uid := scope(r)
-	win := dateRange(r)
 
 	series, err := h.analyticsSeries(r.Context(), all, uid, win)
 	if err != nil {
@@ -187,18 +182,24 @@ func (h *Handler) AnalyticsPage(w http.ResponseWriter, r *http.Request) {
 
 	h.render(w, r, "analytics", map[string]any{
 		"Title":         "Analitik",
-		"Subtitle":      "Ringkasan hasil screening " + win.FromStr + " sampai " + win.ToStr,
-		"Grades":        series.Grades,
-		"TotalGraded":   series.TotalGraded,
-		"Days":          series.Days,
-		"PeakDaily":     series.PeakDaily,
-		"AxisMax":       series.AxisMax,
-		"AxisMid":       series.AxisMid,
-		"BinDays":       series.BinDays,
-		"LowConfidence": lowConf,
-		"Threshold":     LowConfidenceThreshold,
-		"From":          win.FromStr,
-		"To":            win.ToStr,
+		"Subtitle":           "Ringkasan hasil screening " + win.FromStr + " sampai " + win.ToStr,
+		"Summary":            summary,
+		"ReferableCount":     int64(referableCount),
+		"ReferableRate":      referableRate,
+		"MeanConfidence":     toFloat(summary.MeanConfidence),
+		"LowConfidenceCount": int64(toFloat(summary.LowConfidenceCount)),
+		"MeanInferenceMs":    int64(toFloat(summary.MeanInferenceMs)),
+		"Grades":             series.Grades,
+		"TotalGraded":        series.TotalGraded,
+		"Days":               series.Days,
+		"PeakDaily":          series.PeakDaily,
+		"AxisMax":            series.AxisMax,
+		"AxisMid":            series.AxisMid,
+		"BinDays":            series.BinDays,
+		"LowConfidence":      lowConf,
+		"Threshold":          LowConfidenceThreshold,
+		"From":               win.FromStr,
+		"To":                 win.ToStr,
 	})
 }
 
