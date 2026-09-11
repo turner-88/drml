@@ -107,7 +107,6 @@ func Routes(cfg *config.Config, h *handler.Handler) chi.Router {
 
 				r.Get("/admin/settings", h.SettingsPage)
 				r.Post("/admin/settings", h.UpdateSettings)
-				r.Post("/admin/settings/registration", h.UpdateRegistrationSetting)
 			})
 		})
 	})
