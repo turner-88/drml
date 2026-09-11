@@ -78,7 +78,7 @@ func New(
 
 	pages := []string{
 		"dashboard", "scan_new", "scan_detail", "scan_list",
-		"analytics", "users", "user_form", "settings",
+		"analytics", "users", "user_form", "user_edit", "settings",
 	}
 	for _, name := range pages {
 		t, err := parse("base.html", name)

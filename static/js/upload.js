@@ -20,6 +20,7 @@
   var emptyText = document.getElementById('dz-empty-text');
   var emptyHint = document.getElementById('dz-empty-hint');
   var analysisNote = document.getElementById('analysis-note');
+  var notesInput = document.getElementById('scan-notes');
   var tabs = Array.prototype.slice.call(document.querySelectorAll('.mode-tab'));
   var nameEl = document.getElementById('dz-name');
   var sizeEl = document.getElementById('dz-size');
@@ -46,7 +47,8 @@
       note: 'Format JPG, PNG, atau WebP — maks. 12 MB',
       empty: 'Tarik & lepas file gambar ke sini, atau',
       hint: 'Khusus foto kamera fundus retina. Foto biasa atau tangkapan layar otomatis ditolak.',
-      analysis: 'Mohon jangan menutup atau memuat ulang halaman ini selama proses analisis berlangsung.'
+      analysis: 'Mohon jangan menutup atau memuat ulang halaman ini selama proses analisis berlangsung.',
+      notes: 'mis. mata kanan (OD)'
     },
     pdf: {
       accept: 'application/pdf',
@@ -54,7 +56,8 @@
       note: 'Hasil ekspor PDF dari IMAGEnet — maks. 32 MB',
       empty: 'Tarik & lepas file PDF ke sini, atau',
       hint: 'Foto fundus diambil otomatis dari PDF. Laporan dua mata menghasilkan dua pemeriksaan (OD dan OS).',
-      analysis: 'Analisis PDF dua mata memerlukan waktu lebih lama. Mohon jangan menutup atau memuat ulang halaman ini.'
+      analysis: 'Analisis PDF dua mata memerlukan waktu lebih lama. Mohon jangan menutup atau memuat ulang halaman ini.',
+      notes: 'mis. kedua mata'
     }
   };
 
@@ -74,6 +77,7 @@
     emptyText.textContent = cfg.empty;
     emptyHint.textContent = cfg.hint;
     analysisNote.textContent = cfg.analysis;
+    notesInput.placeholder = cfg.notes;
     iconPDF.hidden = mode !== 'pdf';
     iconImage.hidden = mode === 'pdf';
     tabs.forEach(function (t) {

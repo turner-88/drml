@@ -10,6 +10,9 @@ import (
 )
 
 type Querier interface {
+	// AdminSetUserPassword flags the account like CreateUser does: the password was
+	// chosen by an administrator, not by the account holder.
+	AdminSetUserPassword(ctx context.Context, arg AdminSetUserPasswordParams) error
 	ConfidenceByGrade(ctx context.Context, arg ConfidenceByGradeParams) ([]ConfidenceByGradeRow, error)
 	CountScans(ctx context.Context, arg CountScansParams) (int64, error)
 	CountUsers(ctx context.Context, arg CountUsersParams) (int64, error)
@@ -17,7 +20,9 @@ type Querier interface {
 	CreateScan(ctx context.Context, arg CreateScanParams) (sql.Result, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (sql.Result, error)
 	DeleteScan(ctx context.Context, arg DeleteScanParams) error
-	DeleteUser(ctx context.Context, id int32) error
+	// DeleteUser refuses an account that owns scans. fk_scan_created_by would
+	// otherwise null out their created_by, silently orphaning clinical records.
+	DeleteUser(ctx context.Context, id int32) (int64, error)
 	GetScan(ctx context.Context, id int32) (Scan, error)
 	// Role scoping lives in the query, not in Go: a clinician may only read their
 	// own scans, and passing sqlc.arg(all_scans) = 1 for admins keeps the two
@@ -42,7 +47,9 @@ type Querier interface {
 	// token, so it works whether or not the report itself was retained.
 	ListScansBySourceRef(ctx context.Context, arg ListScansBySourceRefParams) ([]Scan, error)
 	ListSettings(ctx context.Context) ([]AppSetting, error)
-	ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error)
+	// scan_count decides whether the account may be deleted; idx_scan_created_by
+	// keeps the subquery to an index range per listed row.
+	ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error)
 	// At ~70% accuracy the model's own uncertainty is the most useful signal it
 	// produces; this queue is what makes the tool honest rather than oracular.
 	LowConfidenceScans(ctx context.Context, arg LowConfidenceScansParams) ([]Scan, error)

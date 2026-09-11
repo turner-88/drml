@@ -10,6 +10,12 @@
 {{end}}
 
 {{define "content"}}
+{{if .Notice}}
+<div role="alert" class="alert alert-success mb-4">
+  <i data-lucide="check-circle"></i>
+  <span>{{.Notice}}</span>
+</div>
+{{end}}
 {{if .Error}}
 <div role="alert" class="alert alert-error mb-4">
   <i data-lucide="alert-circle"></i>
@@ -23,8 +29,10 @@
       <thead>
         <tr>
           <th>Pengguna</th>
+          <th>Email</th>
           <th>Peran (Role)</th>
           <th>Status</th>
+          <th class="text-right">Pemeriksaan</th>
           <th>Tanggal Registrasi</th>
           <th></th>
         </tr>
@@ -41,6 +49,7 @@
               </div>
             </div>
           </td>
+          <td class="whitespace-nowrap">{{.Email}}</td>
           <td>
             <span class="pill {{if eq .Role 2}}pill-info{{else}}pill-muted{{end}}">{{roleLabel .Role}}</span>
           </td>
@@ -51,8 +60,17 @@
               <span class="pill pill-success"><span class="dot"></span>Aktif</span>
             {{end}}
           </td>
+          <td class="text-right tabular-nums">{{.ScanCount}}</td>
           <td class="whitespace-nowrap">{{if .CreatedAt.Valid}}{{unixDateOnly .CreatedAt.Int32}}{{end}}</td>
-          <td class="text-right">
+          <td class="text-right whitespace-nowrap">
+            {{/* Accounts with scans are kept so the record keeps its author; suspend those instead. */}}
+            {{if and (eq .ScanCount 0) (ne .ID $.AuthUser.ID)}}
+            <form method="post" action="/admin/users/{{.ID}}/delete" class="inline"
+                  onsubmit="return confirm('Hapus akun {{.Username}} secara permanen?')">
+              <input type="hidden" name="_csrf" value="{{$.CSRFToken}}">
+              <button type="submit" class="btn btn-xs btn-ghost text-error">Hapus</button>
+            </form>
+            {{end}}
             <form method="post" action="/admin/users/{{.ID}}/suspend" class="inline"
                   onsubmit="return confirm('{{if .SuspendedAt.Valid}}Aktifkan kembali{{else}}Tangguhkan{{end}} akun {{.Username}}?')">
               <input type="hidden" name="_csrf" value="{{$.CSRFToken}}">
@@ -60,10 +78,11 @@
                 {{if .SuspendedAt.Valid}}Aktifkan{{else}}Tangguhkan{{end}}
               </button>
             </form>
+            <a href="/admin/users/{{.ID}}/edit" class="btn btn-xs btn-ghost">Kelola</a>
           </td>
         </tr>
         {{else}}
-        <tr><td colspan="5">
+        <tr><td colspan="7">
           <div class="empty">
             <div class="empty-ic"><i data-lucide="users"></i></div>
             <div class="empty-title">Tidak ada data pengguna</div>

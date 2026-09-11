@@ -1,0 +1,103 @@
+{{define "actions"}}
+<a href="/admin/users" class="btn btn-sm btn-outline">
+  <i data-lucide="arrow-left"></i> Kembali ke Daftar Pengguna
+</a>
+{{end}}
+
+{{define "content"}}
+<div class="max-w-xl flex flex-col gap-6">
+  <form method="post" action="/admin/users/{{.UserID}}">
+    <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">Data Pengguna</h2></div>
+
+      <div class="card-body gap-4">
+        {{if .Error}}
+        <div role="alert" class="alert alert-error">
+          <i data-lucide="alert-circle"></i>
+          <span>{{.Error}}</span>
+        </div>
+        {{end}}
+
+        {{if not .Editable}}
+        <div role="alert" class="alert alert-info">
+          <i data-lucide="info"></i>
+          <span>Akun ini dibuat melalui pendaftaran mandiri. Datanya hanya dapat diubah saat pendaftaran publik dinonaktifkan di halaman Pengaturan.</span>
+        </div>
+        {{end}}
+
+        <div class="field">
+          <span class="label-text">Username</span>
+          <input type="text" name="username" value="{{.Username}}" required minlength="3" maxlength="50"
+                 class="input" autocomplete="off" {{if not .Editable}}disabled{{end}}>
+        </div>
+
+        <div class="field">
+          <span class="label-text">Nama Lengkap</span>
+          <input type="text" name="name" value="{{.Name}}" maxlength="100" class="input"
+                 {{if not .Editable}}disabled{{end}}>
+        </div>
+
+        <div class="field">
+          <span class="label-text">Email</span>
+          <input type="email" name="email" value="{{.Email}}" required maxlength="100" class="input"
+                 {{if not .Editable}}disabled{{end}}>
+        </div>
+
+        <div class="field">
+          <span class="label-text">Peran (Role)
+            {{if .IsSelf}}<span class="label-alt">peran akun Anda sendiri tidak dapat diubah</span>{{end}}</span>
+          {{/* A disabled select submits nothing, so the current role rides along hidden. */}}
+          {{if .RoleLocked}}<input type="hidden" name="role" value="{{.Role}}">{{end}}
+          <select {{if not .RoleLocked}}name="role"{{end}} class="select" {{if .RoleLocked}}disabled{{end}}>
+            <option value="1" {{if eq .Role 1}}selected{{end}}>User — hanya melihat data pemeriksaannya sendiri</option>
+            <option value="2" {{if eq .Role 2}}selected{{end}}>Administrator — akses penuh untuk melihat semua data &amp; mengelola pengguna</option>
+          </select>
+        </div>
+      </div>
+
+      {{if .Editable}}
+      <div class="card-foot">
+        <a href="/admin/users" class="btn btn-ghost">Batal</a>
+        <button type="submit" class="btn btn-primary"><i data-lucide="save"></i> Simpan Perubahan</button>
+      </div>
+      {{end}}
+    </div>
+  </form>
+
+  <form method="post" action="/admin/users/{{.UserID}}/password"
+        onsubmit="return confirm('Atur ulang password akun {{.Account}}?')">
+    <input type="hidden" name="_csrf" value="{{.CSRFToken}}">
+    <div class="card">
+      <div class="card-header"><h2 class="card-title">Atur Ulang Password</h2></div>
+
+      <div class="card-body gap-4">
+        {{if .PasswordError}}
+        <div role="alert" class="alert alert-error">
+          <i data-lucide="alert-circle"></i>
+          <span>{{.PasswordError}}</span>
+        </div>
+        {{end}}
+
+        <p class="hint">Password lama langsung tidak berlaku. Sampaikan password baru kepada pemilik akun secara langsung.</p>
+
+        <div class="field">
+          <span class="label-text">Password Baru</span>
+          <input type="password" name="password" required minlength="8"
+                 class="input" autocomplete="new-password" placeholder="Minimal 8 karakter">
+        </div>
+
+        <div class="field">
+          <span class="label-text">Konfirmasi Password Baru</span>
+          <input type="password" name="password_confirm" required minlength="8"
+                 class="input" autocomplete="new-password" placeholder="Ulangi password baru">
+        </div>
+      </div>
+
+      <div class="card-foot">
+        <button type="submit" class="btn btn-primary"><i data-lucide="key-round"></i> Atur Ulang Password</button>
+      </div>
+    </div>
+  </form>
+</div>
+{{end}}

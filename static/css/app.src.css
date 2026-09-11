@@ -368,6 +368,14 @@
            placeholder:text-base-content/40;
   }
 
+  /* Locked fields must not pass for editable ones. [readonly] rather than
+     :read-only, which Chromium matches on every <select>. */
+  .input:disabled, .input[readonly],
+  .select:disabled,
+  .textarea:disabled, .textarea[readonly] {
+    @apply bg-base-200 text-base-content/60 cursor-not-allowed;
+  }
+
   .checkbox {
     @apply h-5 w-5 rounded-md border border-base-300 align-middle cursor-pointer;
     accent-color: var(--color-primary);

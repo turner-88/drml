@@ -10,6 +10,31 @@ import (
 	"database/sql"
 )
 
+const adminSetUserPassword = `-- name: AdminSetUserPassword :exec
+UPDATE ` + "`" + `user` + "`" + `
+SET password_hash = ?, must_change_password = 1, updated_at = ?, updated_by = ?
+WHERE id = ?
+`
+
+type AdminSetUserPasswordParams struct {
+	PasswordHash string        `json:"password_hash"`
+	UpdatedAt    sql.NullInt32 `json:"updated_at"`
+	UpdatedBy    sql.NullInt32 `json:"updated_by"`
+	ID           int32         `json:"id"`
+}
+
+// AdminSetUserPassword flags the account like CreateUser does: the password was
+// chosen by an administrator, not by the account holder.
+func (q *Queries) AdminSetUserPassword(ctx context.Context, arg AdminSetUserPasswordParams) error {
+	_, err := q.db.ExecContext(ctx, adminSetUserPassword,
+		arg.PasswordHash,
+		arg.UpdatedAt,
+		arg.UpdatedBy,
+		arg.ID,
+	)
+	return err
+}
+
 const countUsers = `-- name: CountUsers :one
 SELECT COUNT(*) FROM ` + "`" + `user` + "`" + `
 WHERE (? IS NULL OR role = ?)
@@ -74,13 +99,20 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (sql.Res
 	)
 }
 
-const deleteUser = `-- name: DeleteUser :exec
-DELETE FROM ` + "`" + `user` + "`" + ` WHERE id = ?
+const deleteUser = `-- name: DeleteUser :execrows
+DELETE FROM ` + "`" + `user` + "`" + `
+WHERE ` + "`" + `user` + "`" + `.id = ?
+  AND NOT EXISTS (SELECT 1 FROM ` + "`" + `scan` + "`" + ` s WHERE s.created_by = ` + "`" + `user` + "`" + `.id)
 `
 
-func (q *Queries) DeleteUser(ctx context.Context, id int32) error {
-	_, err := q.db.ExecContext(ctx, deleteUser, id)
-	return err
+// DeleteUser refuses an account that owns scans. fk_scan_created_by would
+// otherwise null out their created_by, silently orphaning clinical records.
+func (q *Queries) DeleteUser(ctx context.Context, id int32) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteUser, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
@@ -159,9 +191,10 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, name, email, username, password_hash, role, subrole, must_change_password, suspended_at, created_at, updated_at, created_by, updated_by FROM ` + "`" + `user` + "`" + `
-WHERE (? IS NULL OR role = ?)
-ORDER BY id DESC
+SELECT u.id, u.name, u.email, u.username, u.password_hash, u.role, u.subrole, u.must_change_password, u.suspended_at, u.created_at, u.updated_at, u.created_by, u.updated_by, (SELECT COUNT(*) FROM ` + "`" + `scan` + "`" + ` s WHERE s.created_by = u.id) AS scan_count
+FROM ` + "`" + `user` + "`" + ` u
+WHERE (? IS NULL OR u.role = ?)
+ORDER BY u.id DESC
 LIMIT ? OFFSET ?
 `
 
@@ -171,7 +204,26 @@ type ListUsersParams struct {
 	Offset int32         `json:"offset"`
 }
 
-func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error) {
+type ListUsersRow struct {
+	ID                 int32          `json:"id"`
+	Name               sql.NullString `json:"name"`
+	Email              string         `json:"email"`
+	Username           string         `json:"username"`
+	PasswordHash       string         `json:"password_hash"`
+	Role               int32          `json:"role"`
+	Subrole            int32          `json:"subrole"`
+	MustChangePassword sql.NullInt32  `json:"must_change_password"`
+	SuspendedAt        sql.NullInt32  `json:"suspended_at"`
+	CreatedAt          sql.NullInt32  `json:"created_at"`
+	UpdatedAt          sql.NullInt32  `json:"updated_at"`
+	CreatedBy          sql.NullInt32  `json:"created_by"`
+	UpdatedBy          sql.NullInt32  `json:"updated_by"`
+	ScanCount          int64          `json:"scan_count"`
+}
+
+// scan_count decides whether the account may be deleted; idx_scan_created_by
+// keeps the subquery to an index range per listed row.
+func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error) {
 	rows, err := q.db.QueryContext(ctx, listUsers,
 		arg.Role,
 		arg.Role,
@@ -182,9 +234,9 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []ListUsersRow
 	for rows.Next() {
-		var i User
+		var i ListUsersRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
@@ -199,6 +251,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.UpdatedAt,
 			&i.CreatedBy,
 			&i.UpdatedBy,
+			&i.ScanCount,
 		); err != nil {
 			return nil, err
 		}
@@ -267,15 +320,15 @@ func (q *Queries) SetUserSuspended(ctx context.Context, arg SetUserSuspendedPara
 
 const updateUser = `-- name: UpdateUser :exec
 UPDATE ` + "`" + `user` + "`" + `
-SET name = ?, email = ?, role = ?, subrole = ?, updated_at = ?, updated_by = ?
+SET name = ?, email = ?, username = ?, role = ?, updated_at = ?, updated_by = ?
 WHERE id = ?
 `
 
 type UpdateUserParams struct {
 	Name      sql.NullString `json:"name"`
 	Email     string         `json:"email"`
+	Username  string         `json:"username"`
 	Role      int32          `json:"role"`
-	Subrole   int32          `json:"subrole"`
 	UpdatedAt sql.NullInt32  `json:"updated_at"`
 	UpdatedBy sql.NullInt32  `json:"updated_by"`
 	ID        int32          `json:"id"`
@@ -285,8 +338,8 @@ func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) error {
 	_, err := q.db.ExecContext(ctx, updateUser,
 		arg.Name,
 		arg.Email,
+		arg.Username,
 		arg.Role,
-		arg.Subrole,
 		arg.UpdatedAt,
 		arg.UpdatedBy,
 		arg.ID,

@@ -103,7 +103,11 @@ func Routes(cfg *config.Config, h *handler.Handler) chi.Router {
 				r.Get("/admin/users", h.UserList)
 				r.Get("/admin/users/new", h.NewUserPage)
 				r.Post("/admin/users", h.CreateUser)
+				r.Get("/admin/users/{id}/edit", h.EditUserPage)
+				r.Post("/admin/users/{id}", h.UpdateUserData)
+				r.Post("/admin/users/{id}/password", h.SetUserPassword)
 				r.Post("/admin/users/{id}/suspend", h.SuspendUser)
+				r.Post("/admin/users/{id}/delete", h.DeleteUser)
 
 				r.Get("/admin/settings", h.SettingsPage)
 				r.Post("/admin/settings", h.UpdateSettings)

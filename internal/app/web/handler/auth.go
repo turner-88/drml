@@ -163,7 +163,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if msg := h.identityTaken(r.Context(), username, email); msg != "" {
+	if msg := h.identityTaken(r.Context(), username, email, 0); msg != "" {
 		fail(msg)
 		return
 	}
@@ -271,17 +271,22 @@ func (h *Handler) registrationOpen(ctx context.Context) bool {
 }
 
 // identityTaken returns a user-facing message when the username or email
-// already belongs to an account. The unique keys are the real guarantee; this
-// turns the common case into a clear message before bcrypt runs.
-func (h *Handler) identityTaken(ctx context.Context, username, email string) string {
-	if _, err := h.store.GetUserByUsername(ctx, username); err == nil {
-		return "Username sudah digunakan oleh akun lain."
+// already belongs to an account other than except (0 for a new account). The
+// unique keys are the real guarantee; this turns the common case into a clear
+// message before bcrypt runs.
+func (h *Handler) identityTaken(ctx context.Context, username, email string, except int32) string {
+	if u, err := h.store.GetUserByUsername(ctx, username); err == nil {
+		if u.ID != except {
+			return "Username sudah digunakan oleh akun lain."
+		}
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		log.Printf("identity lookup username: %v", err)
 		return "Gagal memeriksa ketersediaan username."
 	}
-	if _, err := h.store.GetUserByEmail(ctx, email); err == nil {
-		return "Email sudah digunakan oleh akun lain."
+	if u, err := h.store.GetUserByEmail(ctx, email); err == nil {
+		if u.ID != except {
+			return "Email sudah digunakan oleh akun lain."
+		}
 	} else if !errors.Is(err, sql.ErrNoRows) {
 		log.Printf("identity lookup email: %v", err)
 		return "Gagal memeriksa ketersediaan email."
